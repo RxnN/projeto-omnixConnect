@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Product } from "@/lib/types";
+import type { PackageType, Product } from "@/lib/types";
 
 const CATEGORIAS_SUGERIDAS = [
   "Vinho Tinto",
@@ -15,6 +15,8 @@ const CATEGORIAS_SUGERIDAS = [
   "Gin",
   "Cerveja Especial",
 ];
+
+const UNIDADES_POR_EMBALAGEM_SUGERIDAS = ["6", "12", "24"];
 
 export default function ProductForm({ product }: { product?: Product }) {
   const router = useRouter();
@@ -30,6 +32,10 @@ export default function ProductForm({ product }: { product?: Product }) {
   const [minStockAlert, setMinStockAlert] = useState(
     product?.minStockAlert != null ? String(product.minStockAlert) : ""
   );
+  const [packageType, setPackageType] = useState<PackageType | "">(product?.packageType ?? "");
+  const [unitsPerPackage, setUnitsPerPackage] = useState(
+    product?.unitsPerPackage != null ? String(product.unitsPerPackage) : ""
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +47,12 @@ export default function ProductForm({ product }: { product?: Product }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (packageType !== "" && (unitsPerPackage === "" || Number(unitsPerPackage) < 1)) {
+      setError("Informe quantas unidades tem cada caixa/pacote.");
+      return;
+    }
+
     setLoading(true);
 
     const payload = {
@@ -52,6 +64,8 @@ export default function ProductForm({ product }: { product?: Product }) {
       currentStock: currentStock === "" ? 0 : Number(currentStock),
       minStockAlert: minStockAlert === "" ? null : Number(minStockAlert),
       barcode: barcode.trim() === "" ? null : barcode.trim(),
+      packageType: packageType === "" ? null : packageType,
+      unitsPerPackage: packageType === "" || unitsPerPackage === "" ? null : Number(unitsPerPackage),
     };
 
     try {
@@ -85,7 +99,7 @@ export default function ProductForm({ product }: { product?: Product }) {
       {isEdit && (
         <div>
           <label className="label">Código</label>
-          <input disabled className="input bg-gray-50 text-gray-500" value={product!.code} />
+          <input disabled className="input" style={{ color: "var(--ink-soft)" }} value={product!.code} />
         </div>
       )}
 
@@ -172,7 +186,52 @@ export default function ProductForm({ product }: { product?: Product }) {
         />
       </div>
 
-      {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
+      <div>
+        <label className="label">Entra como (opcional)</label>
+        <select
+          className="input"
+          value={packageType}
+          onChange={(e) => {
+            setPackageType(e.target.value as PackageType | "");
+            if (e.target.value === "") setUnitsPerPackage("");
+          }}
+        >
+          <option value="">Somente unidade (UNID)</option>
+          <option value="CX">Caixa (CX)</option>
+          <option value="PCT">Pacote (PCT)</option>
+        </select>
+      </div>
+
+      {packageType !== "" && (
+        <div>
+          <label className="label">Unidades por {packageType === "CX" ? "caixa" : "pacote"}</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            required
+            list="unidades-por-embalagem"
+            className="input"
+            placeholder="Ex: 12"
+            value={unitsPerPackage}
+            onChange={(e) => handleIntegerInput(setUnitsPerPackage, e.target.value)}
+          />
+          <datalist id="unidades-por-embalagem">
+            {UNIDADES_POR_EMBALAGEM_SUGERIDAS.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+          <p className="text-xs mt-1" style={{ color: "var(--ink-soft)" }}>
+            Poderá ser lançado em {packageType} ou em UNID nas telas de Entrada e Pedidos.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <p className="sm:col-span-2 text-sm" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
 
       <div className="sm:col-span-2 flex gap-2">
         <button type="submit" disabled={loading} className="btn-primary">

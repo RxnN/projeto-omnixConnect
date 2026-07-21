@@ -8,18 +8,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        vinho: {
-          50: "#fdf2f4",
-          100: "#fbe6ea",
-          200: "#f4c1cb",
-          300: "#e8909f",
-          400: "#d65a72",
-          500: "#b8324f",
-          600: "#8f1f3a",
-          700: "#6f1830",
-          800: "#5a1428",
-          900: "#4b1223",
-        },
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        ink: "var(--ink)",
+        "ink-soft": "var(--ink-soft)",
+        border: "var(--border)",
+        accent: "var(--accent)",
+        "accent-ink": "var(--accent-ink)",
+        ok: "var(--ok)",
+        warn: "var(--warn)",
+        danger: "var(--danger)",
+      },
+      fontFamily: {
+        display: ["var(--font-display)", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
       },
     },
   },

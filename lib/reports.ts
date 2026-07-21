@@ -1,15 +1,42 @@
-import { runAll, runGet } from "./db";
-import type { Product } from "./types";
+import { Prisma } from "@prisma/client";
+import { prisma } from "./prisma";
+import type { PackageType, Product } from "./types";
+
+function toProduct(p: {
+  id: string;
+  adegaId: string;
+  code: string;
+  barcode: string | null;
+  name: string;
+  category: string;
+  unit: string;
+  costPrice: Prisma.Decimal;
+  salePrice: Prisma.Decimal;
+  currentStock: number;
+  minStockAlert: number | null;
+  packageType: string | null;
+  unitsPerPackage: number | null;
+  createdAt: Date;
+}): Product {
+  return {
+    ...p,
+    costPrice: p.costPrice.toNumber(),
+    salePrice: p.salePrice.toNumber(),
+    packageType: p.packageType as PackageType | null,
+    createdAt: p.createdAt.toISOString(),
+  };
+}
 
 export interface EstoqueItem extends Product {
   valorEmEstoque: number;
 }
 
-export function getEstoqueAtual(adegaId: string): EstoqueItem[] {
-  const products = runAll<Product>("SELECT * FROM Product WHERE adegaId = $adegaId ORDER BY name ASC", {
-    $adegaId: adegaId,
+export async function getEstoqueAtual(adegaId: string): Promise<EstoqueItem[]> {
+  const products = await prisma.product.findMany({ where: { adegaId }, orderBy: { name: "asc" } });
+  return products.map((p) => {
+    const product = toProduct(p);
+    return { ...product, valorEmEstoque: product.currentStock * product.costPrice };
   });
-  return products.map((p) => ({ ...p, valorEmEstoque: p.currentStock * p.costPrice }));
 }
 
 export interface FaturamentoResumo {
@@ -18,16 +45,17 @@ export interface FaturamentoResumo {
   numeroSaidas: number;
 }
 
-export function getFaturamento(adegaId: string, from: Date, to: Date): FaturamentoResumo {
-  const row = runGet<FaturamentoResumo>(
-    `SELECT COALESCE(SUM(totalValue), 0) as faturamento,
-            COALESCE(SUM(quantity), 0) as volumeVendido,
-            COUNT(*) as numeroSaidas
-     FROM Movement
-     WHERE adegaId = $adegaId AND type = 'OUT' AND createdAt >= $from AND createdAt <= $to`,
-    { $adegaId: adegaId, $from: from.toISOString(), $to: to.toISOString() }
-  );
-  return row ?? { faturamento: 0, volumeVendido: 0, numeroSaidas: 0 };
+export async function getFaturamento(adegaId: string, from: Date, to: Date): Promise<FaturamentoResumo> {
+  const result = await prisma.movement.aggregate({
+    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    _sum: { totalValue: true, quantity: true },
+    _count: { _all: true },
+  });
+  return {
+    faturamento: result._sum.totalValue?.toNumber() ?? 0,
+    volumeVendido: result._sum.quantity ?? 0,
+    numeroSaidas: result._count._all,
+  };
 }
 
 export interface FaturamentoPorProduto {
@@ -38,19 +66,109 @@ export interface FaturamentoPorProduto {
   faturamento: number;
 }
 
-export function getFaturamentoPorProduto(adegaId: string, from: Date, to: Date): FaturamentoPorProduto[] {
-  return runAll<FaturamentoPorProduto>(
-    `SELECT p.id as productId, p.name as productName, p.unit as unit,
-            COALESCE(SUM(m.quantity), 0) as volumeVendido,
-            COALESCE(SUM(m.totalValue), 0) as faturamento
-     FROM Product p
-     LEFT JOIN Movement m ON m.productId = p.id AND m.type = 'OUT'
-       AND m.createdAt >= $from AND m.createdAt <= $to
-     WHERE p.adegaId = $adegaId
-     GROUP BY p.id
-     ORDER BY faturamento DESC`,
-    { $adegaId: adegaId, $from: from.toISOString(), $to: to.toISOString() }
-  );
+export async function getFaturamentoPorProduto(
+  adegaId: string,
+  from: Date,
+  to: Date
+): Promise<FaturamentoPorProduto[]> {
+  const products = await prisma.product.findMany({
+    where: { adegaId },
+    select: { id: true, name: true, unit: true },
+    orderBy: { name: "asc" },
+  });
+  const grouped = await prisma.movement.groupBy({
+    by: ["productId"],
+    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    _sum: { quantity: true, totalValue: true },
+  });
+  const groupedMap = new Map(grouped.map((g) => [g.productId, g]));
+
+  return products
+    .map((p) => {
+      const g = groupedMap.get(p.id);
+      return {
+        productId: p.id,
+        productName: p.name,
+        unit: p.unit,
+        volumeVendido: g?._sum.quantity ?? 0,
+        faturamento: g?._sum.totalValue?.toNumber() ?? 0,
+      };
+    })
+    .sort((a, b) => b.faturamento - a.faturamento);
+}
+
+export interface RentabilidadeResumo {
+  faturamento: number;
+  custoTotal: number;
+  lucroBruto: number;
+  margemPercent: number | null;
+}
+
+export interface RentabilidadeItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  volumeVendido: number;
+  faturamento: number;
+  custoTotal: number;
+  lucroBruto: number;
+  margemPercent: number | null;
+}
+
+/** Lucro bruto = faturamento (preço de venda praticado) menos custo (preço de custo atual x
+ * quantidade vendida). Não faz custeio histórico (FIFO/média móvel) — usa o custo cadastrado
+ * hoje no produto, mesma limitação já aceita no resto do app. */
+export async function getRentabilidade(
+  adegaId: string,
+  from: Date,
+  to: Date
+): Promise<{ resumo: RentabilidadeResumo; porProduto: RentabilidadeItem[] }> {
+  const products = await prisma.product.findMany({
+    where: { adegaId },
+    select: { id: true, name: true, unit: true, costPrice: true },
+    orderBy: { name: "asc" },
+  });
+  const grouped = await prisma.movement.groupBy({
+    by: ["productId"],
+    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    _sum: { quantity: true, totalValue: true },
+  });
+  const groupedMap = new Map(grouped.map((g) => [g.productId, g]));
+
+  const porProduto = products
+    .map((p) => {
+      const g = groupedMap.get(p.id);
+      const volumeVendido = g?._sum.quantity ?? 0;
+      const faturamento = g?._sum.totalValue?.toNumber() ?? 0;
+      const custoTotal = volumeVendido * p.costPrice.toNumber();
+      const lucroBruto = faturamento - custoTotal;
+      return {
+        productId: p.id,
+        productName: p.name,
+        unit: p.unit,
+        volumeVendido,
+        faturamento,
+        custoTotal,
+        lucroBruto,
+        margemPercent: faturamento > 0 ? Number(((lucroBruto / faturamento) * 100).toFixed(1)) : null,
+      };
+    })
+    .filter((i) => i.volumeVendido > 0)
+    .sort((a, b) => b.lucroBruto - a.lucroBruto);
+
+  const faturamento = porProduto.reduce((sum, i) => sum + i.faturamento, 0);
+  const custoTotal = porProduto.reduce((sum, i) => sum + i.custoTotal, 0);
+  const lucroBruto = faturamento - custoTotal;
+
+  return {
+    resumo: {
+      faturamento,
+      custoTotal,
+      lucroBruto,
+      margemPercent: faturamento > 0 ? Number(((lucroBruto / faturamento) * 100).toFixed(1)) : null,
+    },
+    porProduto,
+  };
 }
 
 export interface SugestaoCompraItem {
@@ -65,23 +183,18 @@ export interface SugestaoCompraItem {
 
 /** Consumo médio diário baseado nas saídas dos últimos 30 dias e sugestão de reposição
  * para cobrir os próximos 30 dias de demanda média, descontando o estoque atual. */
-export function getSugestaoCompra(adegaId: string): SugestaoCompraItem[] {
+export async function getSugestaoCompra(adegaId: string): Promise<SugestaoCompraItem[]> {
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  const products = runAll<Product>("SELECT * FROM Product WHERE adegaId = $adegaId ORDER BY name ASC", {
-    $adegaId: adegaId,
+  const products = await prisma.product.findMany({ where: { adegaId }, orderBy: { name: "asc" } });
+
+  const consumption = await prisma.movement.groupBy({
+    by: ["productId"],
+    where: { adegaId, type: "OUT", createdAt: { gte: since }, pedido: { cancelledAt: null } },
+    _sum: { quantity: true },
   });
-
-  const consumption = runAll<{ productId: string; total: number }>(
-    `SELECT productId, COALESCE(SUM(quantity), 0) as total
-     FROM Movement
-     WHERE adegaId = $adegaId AND type = 'OUT' AND createdAt >= $since
-     GROUP BY productId`,
-    { $adegaId: adegaId, $since: since.toISOString() }
-  );
-
-  const consumptionMap = new Map(consumption.map((c) => [c.productId, c.total]));
+  const consumptionMap = new Map(consumption.map((c) => [c.productId, c._sum.quantity ?? 0]));
 
   return products.map((p) => {
     const total30d = consumptionMap.get(p.id) ?? 0;
@@ -110,20 +223,34 @@ export interface RecorrenciaItem {
 }
 
 /** Ranking de produtos por número de movimentações de saída (frequência), não apenas volume. */
-export function getRankingRecorrencia(adegaId: string, from: Date, to: Date): RecorrenciaItem[] {
-  return runAll<RecorrenciaItem>(
-    `SELECT p.id as productId, p.name as productName, p.unit as unit,
-            COUNT(m.id) as numeroSaidas,
-            COALESCE(SUM(m.quantity), 0) as volumeTotal
-     FROM Product p
-     JOIN Movement m ON m.productId = p.id AND m.type = 'OUT'
-       AND m.createdAt >= $from AND m.createdAt <= $to
-     WHERE p.adegaId = $adegaId
-     GROUP BY p.id
-     ORDER BY numeroSaidas DESC
-     LIMIT 20`,
-    { $adegaId: adegaId, $from: from.toISOString(), $to: to.toISOString() }
-  );
+export async function getRankingRecorrencia(adegaId: string, from: Date, to: Date): Promise<RecorrenciaItem[]> {
+  const grouped = await prisma.movement.groupBy({
+    by: ["productId"],
+    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    _count: { _all: true },
+    _sum: { quantity: true },
+  });
+  if (grouped.length === 0) return [];
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: grouped.map((g) => g.productId) } },
+    select: { id: true, name: true, unit: true },
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  return grouped
+    .map((g) => {
+      const p = productMap.get(g.productId);
+      return {
+        productId: g.productId,
+        productName: p?.name ?? "",
+        unit: p?.unit ?? "",
+        numeroSaidas: g._count._all,
+        volumeTotal: g._sum.quantity ?? 0,
+      };
+    })
+    .sort((a, b) => b.numeroSaidas - a.numeroSaidas)
+    .slice(0, 20);
 }
 
 export type Periodo = "dia" | "semana" | "mes" | "customizado";

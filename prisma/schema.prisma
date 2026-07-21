@@ -1,17 +1,9 @@
-// NOTA: Neste protótipo, o cliente Prisma NÃO é usado em tempo de execução.
-// O download dos engines nativos do Prisma (binaries.prisma.sh) é bloqueado
-// pela política de rede do ambiente sandbox usado para gerar este projeto,
-// então a camada de dados foi implementada com o módulo nativo `node:sqlite`
-// (lib/db.ts) seguindo EXATAMENTE este mesmo modelo de dados. Este arquivo
-// permanece como a documentação canônica do esquema (e pode ser usado
-// normalmente com `npx prisma migrate dev` em um ambiente com acesso à
-// internet liberado).
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -37,13 +29,32 @@ enum PackageType {
 }
 
 model Adega {
-  id        String     @id @default(cuid())
-  name      String
-  createdAt DateTime   @default(now())
-  users     User[]
-  products  Product[]
-  movements Movement[]
-  pedidos   Pedido[]
+  id             String     @id @default(cuid())
+  name           String
+  /// Importação em lote de produtos (planilha) é um recurso pago, liberado manualmente
+  /// por adega — não é auto-habilitado no cadastro self-service.
+  importEnabled  Boolean    @default(false)
+  /// Conta fica travada (sem acesso ao app) até o pagamento ser confirmado e a conta
+  /// ser aprovada manualmente. Cadastro self-service sempre nasce com approved = false.
+  approved       Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  users          User[]
+  products       Product[]
+  movements      Movement[]
+  pedidos        Pedido[]
+  counters       Counter[]
+}
+
+/// Contador atômico por adega (código de produto, número de pedido por tipo, etc).
+/// O upsert com increment é uma única instrução UPDATE no Postgres — o próprio banco
+/// serializa concorrência na mesma linha, sem precisar de lock explícito na aplicação.
+model Counter {
+  adegaId String
+  adega   Adega  @relation(fields: [adegaId], references: [id])
+  scope   String
+  value   Int    @default(0)
+
+  @@id([adegaId, scope])
 }
 
 model User {
@@ -57,6 +68,7 @@ model User {
   createdAt    DateTime   @default(now())
   movements    Movement[] @relation("MovementCreatedBy")
   pedidos      Pedido[]   @relation("PedidoCreatedBy")
+  pedidosCancelados Pedido[] @relation("PedidoCancelledBy")
 }
 
 model Product {
@@ -68,10 +80,14 @@ model Product {
   name          String
   category      String
   unit          String
-  costPrice     Float
-  salePrice     Float
-  currentStock  Float      @default(0)
-  minStockAlert Float?
+  /// Dinheiro nunca em Float — ponto flutuante binário não representa centavos com
+  /// exatidão e o erro acumula em relatórios. Decimal(12,2) mapeia pra numeric no Postgres.
+  costPrice     Decimal    @db.Decimal(12, 2)
+  salePrice     Decimal    @db.Decimal(12, 2)
+  /// Quantidade é sempre inteira (regra de negócio validada em toda a aplicação) — Int
+  /// em vez de Float evita que um bug de arredondamento em algum lugar grave fração de unidade.
+  currentStock  Int        @default(0)
+  minStockAlert Int?
   packageType   PackageType?
   unitsPerPackage Int?
   createdAt     DateTime   @default(now())
@@ -88,13 +104,17 @@ model Pedido {
   adega           Adega        @relation(fields: [adegaId], references: [id])
   type            MovementType @default(OUT)
   number          Int
-  totalValue      Float
+  totalValue      Decimal      @db.Decimal(12, 2)
   createdAt       DateTime     @default(now())
   createdByUserId String
   createdByUser   User         @relation("PedidoCreatedBy", fields: [createdByUserId], references: [id])
+  cancelledAt     DateTime?
+  cancelledByUserId String?
+  cancelledByUser User?        @relation("PedidoCancelledBy", fields: [cancelledByUserId], references: [id])
   items           Movement[]
 
   @@index([adegaId])
+  @@index([adegaId, type, createdAt])
   @@unique([adegaId, type, number])
 }
 
@@ -105,9 +125,9 @@ model Movement {
   productId       String
   product         Product        @relation(fields: [productId], references: [id])
   type            MovementType
-  quantity        Float
-  unitValue       Float
-  totalValue      Float
+  quantity        Int
+  unitValue       Decimal        @db.Decimal(12, 2)
+  totalValue      Decimal        @db.Decimal(12, 2)
   createdAt       DateTime       @default(now())
   createdByUserId String
   createdByUser   User           @relation("MovementCreatedBy", fields: [createdByUserId], references: [id])
@@ -119,4 +139,5 @@ model Movement {
   @@index([productId])
   @@index([createdAt])
   @@index([pedidoId])
+  @@index([adegaId, type, createdAt])
 }

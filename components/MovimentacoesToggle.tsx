@@ -7,9 +7,11 @@ import HistoricoPedidos from "./HistoricoPedidos";
 export default function MovimentacoesToggle({
   saidas,
   entradas,
+  canManage = false,
 }: {
   saidas: PedidoWithItems[];
   entradas: PedidoWithItems[];
+  canManage?: boolean;
 }) {
   const [tab, setTab] = useState<"OUT" | "IN">("OUT");
 
@@ -28,7 +30,7 @@ export default function MovimentacoesToggle({
         </button>
       </div>
 
-      <HistoricoPedidos pedidos={tab === "OUT" ? saidas : entradas} />
+      <HistoricoPedidos pedidos={tab === "OUT" ? saidas : entradas} canManage={canManage} />
     </div>
   );
 }

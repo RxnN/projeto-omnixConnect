@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { getProductByBarcode, getProductByCode, getProductById } from "@/lib/repo";
+import { withErrorHandling } from "@/lib/api-handler";
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -20,12 +21,12 @@ export async function GET(req: NextRequest) {
   if (match) productId = match[0];
 
   const product =
-    getProductById(productId, user.adegaId) ??
-    getProductByCode(trimmedCode, user.adegaId) ??
-    getProductByBarcode(trimmedCode, user.adegaId);
+    (await getProductById(productId, user.adegaId)) ??
+    (await getProductByCode(trimmedCode, user.adegaId)) ??
+    (await getProductByBarcode(trimmedCode, user.adegaId));
   if (!product) {
     return NextResponse.json({ error: "Produto não encontrado para o código lido." }, { status: 404 });
   }
 
   return NextResponse.json({ product });
-}
+});

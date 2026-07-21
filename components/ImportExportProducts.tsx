@@ -9,7 +9,13 @@ interface ImportResult {
   errors: string[];
 }
 
-export default function ImportExportProducts({ canImport }: { canImport: boolean }) {
+export default function ImportExportProducts({
+  canImport,
+  importEnabled,
+}: {
+  canImport: boolean;
+  importEnabled: boolean;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -49,7 +55,7 @@ export default function ImportExportProducts({ canImport }: { canImport: boolean
         <a href="/api/produtos/export" className="btn-secondary">
           Exportar planilha
         </a>
-        {canImport && (
+        {canImport && importEnabled && (
           <>
             <button
               type="button"
@@ -70,16 +76,20 @@ export default function ImportExportProducts({ canImport }: { canImport: boolean
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600 max-w-xs text-right">{error}</p>}
+      {error && (
+        <p className="text-sm max-w-xs text-right" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
 
       {result && (
         <div className="text-right">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
             {result.created} criado(s), {result.updated} atualizado(s)
             {result.errors.length > 0 ? `, ${result.errors.length} linha(s) com erro.` : "."}
           </p>
           {result.errors.length > 0 && (
-            <ul className="text-xs text-red-600 list-disc list-inside max-w-xs text-left">
+            <ul className="text-xs list-disc list-inside max-w-xs text-left" style={{ color: "var(--danger)" }}>
               {result.errors.slice(0, 10).map((err, i) => (
                 <li key={i}>{err}</li>
               ))}

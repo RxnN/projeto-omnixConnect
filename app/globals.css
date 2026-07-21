@@ -2,34 +2,173 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #f3f2ef;
+  --surface: #ffffff;
+  --surface-2: #edece7;
+  --ink: #14151a;
+  --ink-soft: #5c5f68;
+  --border: #dedcd4;
+  --accent: #b5651d;
+  --accent-ink: #ffffff;
+  --ok: #1f8a5c;
+  --ok-soft: rgba(31, 138, 92, 0.1);
+  --warn: #b5651d;
+  --warn-soft: rgba(181, 101, 29, 0.1);
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14151a;
+    --surface: #1c1e24;
+    --surface-2: #24262e;
+    --ink: #f1f2f0;
+    --ink-soft: #93969f;
+    --border: #2f323b;
+    --accent: #d98e2b;
+    --accent-ink: #1b1200;
+    --ok: #33b07a;
+    --ok-soft: rgba(51, 176, 122, 0.16);
+    --warn: #d98e2b;
+    --warn-soft: rgba(217, 142, 43, 0.16);
+    --danger: #e2584a;
+    --danger-soft: rgba(226, 88, 74, 0.16);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14151a;
+  --surface: #1c1e24;
+  --surface-2: #24262e;
+  --ink: #f1f2f0;
+  --ink-soft: #93969f;
+  --border: #2f323b;
+  --accent: #d98e2b;
+  --accent-ink: #1b1200;
+  --ok: #33b07a;
+  --ok-soft: rgba(51, 176, 122, 0.16);
+  --warn: #d98e2b;
+  --warn-soft: rgba(217, 142, 43, 0.16);
+  --danger: #e2584a;
+  --danger-soft: rgba(226, 88, 74, 0.16);
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f2ef;
+  --surface: #ffffff;
+  --surface-2: #edece7;
+  --ink: #14151a;
+  --ink-soft: #5c5f68;
+  --border: #dedcd4;
+  --accent: #b5651d;
+  --accent-ink: #ffffff;
+  --ok: #1f8a5c;
+  --ok-soft: rgba(31, 138, 92, 0.1);
+  --warn: #b5651d;
+  --warn-soft: rgba(181, 101, 29, 0.1);
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.1);
+}
+
 html,
 body {
   height: 100%;
 }
 
 body {
-  background-color: #faf7f5;
-  color: #2a1418;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display), -apple-system, "Segoe UI", sans-serif;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  font-family: var(--font-display), sans-serif;
 }
 .btn-primary {
-  @apply btn bg-vinho-600 text-white hover:bg-vinho-700;
+  @apply btn text-accent-ink;
+  background-color: var(--accent);
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 .btn-secondary {
-  @apply btn bg-white text-vinho-700 border border-vinho-300 hover:bg-vinho-50;
+  @apply btn border;
+  background-color: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
 }
 .btn-danger {
-  @apply btn bg-red-600 text-white hover:bg-red-700;
+  @apply btn text-white;
+  background-color: var(--danger);
 }
-.card {
-  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-5;
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
+
+.card,
+.panel {
+  @apply rounded-xl border p-5;
+  background-color: var(--surface);
+  border-color: var(--border);
+}
+
 .input {
-  @apply w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vinho-400 focus:border-vinho-400;
+  @apply w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2;
+  background-color: var(--surface-2);
+  border-color: var(--border);
+  color: var(--ink);
 }
+.input:focus {
+  border-color: var(--accent);
+  --tw-ring-color: var(--accent);
+}
+.input::placeholder {
+  color: var(--ink-soft);
+}
+
 .label {
-  @apply block text-sm font-medium text-gray-700 mb-1;
+  @apply block text-xs font-semibold uppercase tracking-wide mb-1.5;
+  color: var(--ink-soft);
+}
+
+.kpi {
+  @apply rounded-xl border p-4;
+  background-color: var(--surface);
+  border-color: var(--border);
+}
+.kpi .kpi-label {
+  @apply text-xs font-semibold uppercase tracking-wide mb-1.5;
+  color: var(--ink-soft);
+}
+.kpi .kpi-value {
+  @apply text-xl font-bold;
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+}
+.pill-ok {
+  background-color: var(--ok-soft);
+  color: var(--ok);
+}
+.pill-warn {
+  background-color: var(--warn-soft);
+  color: var(--warn);
+}
+.pill-danger {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+}
+
+.tabular {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
 }

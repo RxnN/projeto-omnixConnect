@@ -1,28 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import QRCode from "qrcode";
 import { requireUser, canManageProducts } from "@/lib/auth";
 import { getProductById } from "@/lib/repo";
 import DeleteProductButton from "@/components/DeleteProductButton";
-
-function formatBRL(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import BarcodeImage from "@/components/BarcodeImage";
+import { formatBRL } from "@/lib/format";
 
 export default async function ProdutoDetalhePage({ params }: { params: { id: string } }) {
   const user = await requireUser();
-  const product = getProductById(params.id, user.adegaId);
+  const product = await getProductById(params.id, user.adegaId);
   if (!product) notFound();
 
   const canManage = canManageProducts(user.role);
-  const qrDataUrl = await QRCode.toDataURL(product.id, { width: 280, margin: 2 });
+  const barcodeValue = product.barcode ?? product.code;
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-vinho-800">{product.name}</h1>
-          <p className="text-gray-600 text-sm">{product.category}</p>
+          <h1 className="text-2xl font-bold">{product.name}</h1>
+          <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+            {product.category}
+          </p>
         </div>
         <div className="flex gap-2">
           <Link href="/produtos" className="btn-secondary">
@@ -41,61 +40,67 @@ export default async function ProdutoDetalhePage({ params }: { params: { id: str
 
       <div className="grid sm:grid-cols-2 gap-6">
         <div className="card space-y-3">
-          <h2 className="font-semibold text-vinho-800">Dados do produto</h2>
+          <h2 className="font-semibold">Dados do produto</h2>
           <dl className="text-sm space-y-2">
             <div className="flex justify-between">
-              <dt className="text-gray-500">Unidade</dt>
+              <dt style={{ color: "var(--ink-soft)" }}>Unidade</dt>
               <dd>{product.unit}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Estoque atual</dt>
-              <dd className="font-medium">
+              <dt style={{ color: "var(--ink-soft)" }}>Estoque atual</dt>
+              <dd className="font-medium tabular text-right">
                 {product.currentStock} {product.unit}
+                {product.packageType && product.unitsPerPackage && (
+                  <span className="block text-xs font-normal" style={{ color: "var(--ink-soft)" }}>
+                    ≈ {Math.floor(product.currentStock / product.unitsPerPackage)} {product.packageType} +{" "}
+                    {product.currentStock % product.unitsPerPackage} un
+                  </span>
+                )}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Preço de custo</dt>
-              <dd>{formatBRL(product.costPrice)}</dd>
+              <dt style={{ color: "var(--ink-soft)" }}>Entra como</dt>
+              <dd>
+                {product.packageType
+                  ? `${product.packageType === "CX" ? "Caixa" : "Pacote"} (${product.unitsPerPackage} un)`
+                  : "Somente unidade"}
+              </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Preço de venda</dt>
-              <dd>{formatBRL(product.salePrice)}</dd>
+              <dt style={{ color: "var(--ink-soft)" }}>Preço de custo</dt>
+              <dd className="tabular">{formatBRL(product.costPrice)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Alerta de estoque mínimo</dt>
-              <dd>{product.minStockAlert != null ? `${product.minStockAlert} ${product.unit}` : "-"}</dd>
+              <dt style={{ color: "var(--ink-soft)" }}>Preço de venda</dt>
+              <dd className="tabular">{formatBRL(product.salePrice)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Código</dt>
-              <dd className="font-mono text-xs">{product.code}</dd>
+              <dt style={{ color: "var(--ink-soft)" }}>Alerta de estoque mínimo</dt>
+              <dd className="tabular">{product.minStockAlert != null ? `${product.minStockAlert} ${product.unit}` : "-"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Código de barras</dt>
-              <dd className="font-mono text-xs">{product.barcode ?? "-"}</dd>
+              <dt style={{ color: "var(--ink-soft)" }}>Código</dt>
+              <dd className="font-mono text-xs tabular">{product.code}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt style={{ color: "var(--ink-soft)" }}>Código de barras</dt>
+              <dd className="font-mono text-xs tabular">{product.barcode ?? "-"}</dd>
             </div>
           </dl>
         </div>
 
         <div className="card space-y-3 text-center">
-          <h2 className="font-semibold text-vinho-800">QR Code do produto</h2>
-          <p className="text-xs text-gray-500">
-            Use este código para identificar o produto rapidamente na tela de Movimentação (saída).
+          <h2 className="font-semibold">Código de barras do produto</h2>
+          <p className="text-xs" style={{ color: "var(--ink-soft)" }}>
+            {product.barcode
+              ? "Código de barras cadastrado do produto (o mesmo que já vem na embalagem)."
+              : "Nenhum código de barras cadastrado — gerado a partir do código interno do produto."}{" "}
+            Use um leitor de código de barras para identificar o produto rapidamente nas telas de Pedidos e Entrada.
           </p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={qrDataUrl}
-            alt={`QR Code do produto ${product.name}`}
-            className="mx-auto border border-gray-200 rounded-md"
-            width={220}
-            height={220}
+          <BarcodeImage
+            value={barcodeValue}
+            fileName={`codigo-barras-${product.name.replace(/\s+/g, "-").toLowerCase()}.png`}
           />
-          <a
-            href={qrDataUrl}
-            download={`qrcode-${product.name.replace(/\s+/g, "-").toLowerCase()}.png`}
-            className="btn-secondary inline-block"
-          >
-            Baixar / Imprimir QR Code
-          </a>
         </div>
       </div>
     </div>

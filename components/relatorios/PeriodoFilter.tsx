@@ -45,19 +45,22 @@ export default function PeriodoFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {OPCOES.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => updatePeriodo(o.value)}
-          className={`text-sm px-3 py-1.5 rounded-md border ${
-            periodo === o.value
-              ? "bg-vinho-600 text-white border-vinho-600"
-              : "bg-white text-vinho-700 border-vinho-300 hover:bg-vinho-50"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+      <div className="inline-flex rounded-full border p-1 gap-1" style={{ borderColor: "var(--border)", backgroundColor: "var(--surface)" }}>
+        {OPCOES.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => updatePeriodo(o.value)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+            style={
+              periodo === o.value
+                ? { backgroundColor: "var(--accent)", color: "var(--accent-ink)" }
+                : { color: "var(--ink-soft)" }
+            }
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
       {periodo === "customizado" && (
         <div className="flex items-center gap-2 ml-2">
           <input
@@ -66,7 +69,9 @@ export default function PeriodoFilter({
             value={customFrom}
             onChange={(e) => setCustomFrom(e.target.value)}
           />
-          <span className="text-gray-500 text-sm">até</span>
+          <span className="text-sm" style={{ color: "var(--ink-soft)" }}>
+            até
+          </span>
           <input
             type="date"
             className="input !w-auto"

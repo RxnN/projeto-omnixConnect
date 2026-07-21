@@ -17,12 +17,15 @@ declare module "iron-session" {
   }
 }
 
-const sessionPassword =
-  process.env.SESSION_SECRET ??
-  "chave_de_desenvolvimento_local_apenas_para_prototipo_32chars";
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+  throw new Error(
+    "SESSION_SECRET não configurado (ou tem menos de 32 caracteres). Defina uma chave forte e única em .env — " +
+      "nunca use um valor padrão, isso permitiria forjar sessões de qualquer usuário."
+  );
+}
 
 export const sessionOptions = {
-  password: sessionPassword,
+  password: process.env.SESSION_SECRET,
   cookieName: "adegas_session",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",

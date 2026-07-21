@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canManageProducts } from "@/lib/auth";
 import { createProduct, isBarcodeTaken } from "@/lib/repo";
+import { withErrorHandling } from "@/lib/api-handler";
+import { produtoCreateSchema, firstZodError } from "@/lib/validation";
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   if (!canManageProducts(user.role)) {
@@ -11,50 +13,27 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Corpo da requisição inválido." }, { status: 400 });
+  const parsed = produtoCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstZodError(parsed) }, { status: 400 });
+  }
+  const data = parsed.data;
 
-  const name = String(body.name ?? "").trim();
-  const category = String(body.category ?? "").trim();
-  const unit = String(body.unit ?? "").trim();
-  const costPrice = Number(body.costPrice);
-  const salePrice = Number(body.salePrice);
-  const currentStock = body.currentStock === undefined || body.currentStock === "" ? 0 : Number(body.currentStock);
-  const minStockAlert =
-    body.minStockAlert !== undefined && body.minStockAlert !== null && body.minStockAlert !== ""
-      ? Number(body.minStockAlert)
-      : null;
-  const barcode = String(body.barcode ?? "").trim() || null;
-
-  if (!name || !category || !unit) {
-    return NextResponse.json({ error: "Preencha nome, categoria e unidade." }, { status: 400 });
-  }
-  if (Number.isNaN(costPrice) || Number.isNaN(salePrice) || costPrice < 0 || salePrice < 0) {
-    return NextResponse.json({ error: "Preços inválidos." }, { status: 400 });
-  }
-  if (!Number.isInteger(currentStock) || currentStock < 0) {
-    return NextResponse.json({ error: "Estoque inicial deve ser um número inteiro maior ou igual a zero." }, { status: 400 });
-  }
-  if (minStockAlert !== null && (!Number.isInteger(minStockAlert) || minStockAlert < 0)) {
+  if (data.packageType && (data.unitsPerPackage === null || data.unitsPerPackage < 1)) {
     return NextResponse.json(
-      { error: "Alerta de estoque mínimo deve ser um número inteiro maior ou igual a zero." },
+      { error: "Informe quantas unidades tem cada caixa/pacote (número inteiro maior que zero)." },
       { status: 400 }
     );
   }
-  if (barcode && isBarcodeTaken(barcode, user.adegaId)) {
+  if (data.barcode && (await isBarcodeTaken(data.barcode, user.adegaId))) {
     return NextResponse.json({ error: "Já existe um produto com esse código de barras." }, { status: 400 });
   }
 
-  const product = createProduct({
+  const product = await createProduct({
     adegaId: user.adegaId,
-    name,
-    category,
-    unit,
-    costPrice,
-    salePrice,
-    currentStock,
-    minStockAlert,
-    barcode,
+    ...data,
+    unitsPerPackage: data.packageType ? data.unitsPerPackage : null,
   });
 
   return NextResponse.json({ ok: true, product });
-}
+});

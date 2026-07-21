@@ -1,18 +1,21 @@
 // Script de seed do banco de dados de demonstração.
-// Usa a camada de dados baseada em `node:sqlite` (lib/db.ts e lib/repo.ts),
-// que segue exatamente o modelo de dados documentado em prisma/schema.prisma.
-// Veja o README.md para detalhes sobre essa decisão técnica.
+// Usa o Prisma Client (lib/prisma.ts), seguindo o modelo de dados em prisma/schema.prisma.
+//
+// Importante: este script só remove os dados da PRÓPRIA adega de demonstração
+// (identificada pelo e-mail do dono "dono@adega.com"), nunca o banco inteiro —
+// o mesmo Postgres pode estar hospedando outras adegas reais.
 
-import fs from "node:fs";
-import path from "node:path";
 import bcrypt from "bcryptjs";
-import { getDb, createId } from "../lib/db";
+import { prisma } from "../lib/prisma";
+import { createId } from "../lib/id";
 
-function daysAgo(n: number, hour = 10): string {
+const DEMO_OWNER_EMAIL = "dono@adega.com";
+
+function daysAgo(n: number, hour = 10): Date {
   const d = new Date();
   d.setDate(d.getDate() - n);
   d.setHours(hour, Math.floor(Math.random() * 60), 0, 0);
-  return d.toISOString();
+  return d;
 }
 
 function randInt(min: number, max: number) {
@@ -20,35 +23,36 @@ function randInt(min: number, max: number) {
 }
 
 async function main() {
-  const dbPath = path.join(process.cwd(), "prisma", "dev.db");
-  for (const suffix of ["", "-wal", "-shm"]) {
-    const p = dbPath + suffix;
-    if (fs.existsSync(p)) fs.rmSync(p);
+  const existingOwner = await prisma.user.findUnique({ where: { email: DEMO_OWNER_EMAIL } });
+  if (existingOwner) {
+    console.log("Removendo dados de demonstração anteriores...");
+    const adegaId = existingOwner.adegaId;
+    await prisma.movement.deleteMany({ where: { adegaId } });
+    await prisma.pedido.deleteMany({ where: { adegaId } });
+    await prisma.product.deleteMany({ where: { adegaId } });
+    await prisma.counter.deleteMany({ where: { adegaId } });
+    await prisma.user.deleteMany({ where: { adegaId } });
+    await prisma.adega.deleteMany({ where: { id: adegaId } });
   }
 
-  const db = getDb();
-
   console.log("Criando adega...");
-  const adegaId = createId("adega");
-  db.prepare("INSERT INTO Adega (id, name) VALUES ($id, $name)").run({
-    $id: adegaId,
-    $name: "Adega do Renan",
+  const adega = await prisma.adega.create({
+    data: { id: createId("adega"), name: "Adega do Renan", importEnabled: true, approved: true },
   });
 
   console.log("Criando usuários...");
   const passwordHash = await bcrypt.hash("senha123", 10);
 
-  function insertUser(name: string, email: string, role: string) {
-    const id = createId("user");
-    db.prepare(
-      `INSERT INTO User (id, adegaId, name, email, passwordHash, role) VALUES ($id, $adegaId, $name, $email, $passwordHash, $role)`
-    ).run({ $id: id, $adegaId: adegaId, $name: name, $email: email, $passwordHash: passwordHash, $role: role });
-    return id;
+  async function insertUser(name: string, email: string, role: "OWNER" | "MANAGER" | "EMPLOYEE") {
+    const user = await prisma.user.create({
+      data: { id: createId("user"), adegaId: adega.id, name, email, passwordHash, role },
+    });
+    return user.id;
   }
 
-  const donoId = insertUser("Renan Fernandes", "dono@adega.com", "OWNER");
-  const gerenteId = insertUser("Marina Souza", "gerente@adega.com", "MANAGER");
-  const funcionarioId = insertUser("João Pereira", "funcionario@adega.com", "EMPLOYEE");
+  const donoId = await insertUser("Renan Fernandes", DEMO_OWNER_EMAIL, "OWNER");
+  const gerenteId = await insertUser("Marina Souza", "gerente@adega.com", "MANAGER");
+  const funcionarioId = await insertUser("João Pereira", "funcionario@adega.com", "EMPLOYEE");
   const userIds = [donoId, gerenteId, funcionarioId];
 
   console.log("Criando produtos...");
@@ -68,71 +72,85 @@ async function main() {
   const products: { id: string; costPrice: number; salePrice: number; freq: number }[] = [];
   for (let i = 0; i < productDefs.length; i++) {
     const p = productDefs[i];
-    const id = createId("prod");
     const code = String(i + 1).padStart(4, "0");
-    db.prepare(
-      `INSERT INTO Product (id, adegaId, code, name, category, unit, costPrice, salePrice, currentStock, minStockAlert)
-       VALUES ($id, $adegaId, $code, $name, $category, $unit, $costPrice, $salePrice, 0, $minStockAlert)`
-    ).run({
-      $id: id,
-      $adegaId: adegaId,
-      $code: code,
-      $name: p.name,
-      $category: p.category,
-      $unit: p.unit,
-      $costPrice: p.costPrice,
-      $salePrice: p.salePrice,
-      $minStockAlert: p.minStockAlert,
+    const product = await prisma.product.create({
+      data: {
+        id: createId("prod"),
+        adegaId: adega.id,
+        code,
+        name: p.name,
+        category: p.category,
+        unit: p.unit,
+        costPrice: p.costPrice,
+        salePrice: p.salePrice,
+        currentStock: 0,
+        minStockAlert: p.minStockAlert,
+      },
     });
-    products.push({ id, costPrice: p.costPrice, salePrice: p.salePrice, freq: p.freq });
+    products.push({ id: product.id, costPrice: p.costPrice, salePrice: p.salePrice, freq: p.freq });
   }
 
-  function insertMovement(opts: {
+  // Cada movimentação histórica vira seu próprio pedido de 1 item, para que o
+  // conjunto de dados de demonstração passe pelo mesmo caminho (Pedido -> Movement)
+  // que o app usa de verdade, e apareça corretamente nos relatórios.
+  const pedidoNumbers: Record<"IN" | "OUT", number> = { IN: 0, OUT: 0 };
+
+  async function insertMovement(opts: {
     productId: string;
     type: "IN" | "OUT";
     quantity: number;
     unitValue: number;
-    createdAt: string;
+    createdAt: Date;
     createdByUserId: string;
     source: "MANUAL" | "QRCODE";
   }) {
-    const id = createId("mov");
-    db.prepare(
-      `INSERT INTO Movement (id, adegaId, productId, type, quantity, unitValue, totalValue, createdAt, createdByUserId, source)
-       VALUES ($id, $adegaId, $productId, $type, $quantity, $unitValue, $totalValue, $createdAt, $createdByUserId, $source)`
-    ).run({
-      $id: id,
-      $adegaId: adegaId,
-      $productId: opts.productId,
-      $type: opts.type,
-      $quantity: opts.quantity,
-      $unitValue: opts.unitValue,
-      $totalValue: opts.quantity * opts.unitValue,
-      $createdAt: opts.createdAt,
-      $createdByUserId: opts.createdByUserId,
-      $source: opts.source,
+    const totalValue = opts.quantity * opts.unitValue;
+    pedidoNumbers[opts.type] += 1;
+    const pedido = await prisma.pedido.create({
+      data: {
+        id: createId("pedido"),
+        adegaId: adega.id,
+        type: opts.type,
+        number: pedidoNumbers[opts.type],
+        totalValue,
+        createdAt: opts.createdAt,
+        createdByUserId: opts.createdByUserId,
+      },
+    });
+    await prisma.movement.create({
+      data: {
+        id: createId("mov"),
+        adegaId: adega.id,
+        productId: opts.productId,
+        type: opts.type,
+        quantity: opts.quantity,
+        unitValue: opts.unitValue,
+        totalValue,
+        createdAt: opts.createdAt,
+        createdByUserId: opts.createdByUserId,
+        source: opts.source,
+        pedidoId: pedido.id,
+      },
     });
   }
 
-  function addStock(productId: string, delta: number) {
-    db.prepare("UPDATE Product SET currentStock = currentStock + $delta WHERE id = $id").run({
-      $delta: delta,
-      $id: productId,
-    });
+  async function addStock(productId: string, delta: number) {
+    await prisma.product.update({ where: { id: productId }, data: { currentStock: { increment: delta } } });
   }
 
+  const stockCache = new Map(products.map((p) => [p.id, 0]));
   function getStock(productId: string): number {
-    const row = db.prepare("SELECT currentStock FROM Product WHERE id = $id").get({ $id: productId }) as
-      | { currentStock: number }
-      | undefined;
-    return row?.currentStock ?? 0;
+    return stockCache.get(productId) ?? 0;
+  }
+  function trackStock(productId: string, delta: number) {
+    stockCache.set(productId, getStock(productId) + delta);
   }
 
   console.log("Criando movimentações dos últimos 45 dias...");
 
   for (const product of products) {
     const qty = randInt(40, 80);
-    insertMovement({
+    await insertMovement({
       productId: product.id,
       type: "IN",
       quantity: qty,
@@ -141,7 +159,8 @@ async function main() {
       createdByUserId: donoId,
       source: "MANUAL",
     });
-    addStock(product.id, qty);
+    await addStock(product.id, qty);
+    trackStock(product.id, qty);
   }
 
   let movementCount = products.length;
@@ -155,7 +174,7 @@ async function main() {
         const current = getStock(product.id);
         const effectiveQty = Math.min(qty, current);
         if (effectiveQty > 0) {
-          insertMovement({
+          await insertMovement({
             productId: product.id,
             type: "OUT",
             quantity: effectiveQty,
@@ -164,14 +183,15 @@ async function main() {
             createdByUserId: userId,
             source,
           });
-          addStock(product.id, -effectiveQty);
+          await addStock(product.id, -effectiveQty);
+          trackStock(product.id, -effectiveQty);
           movementCount++;
         }
       }
 
       if (day % 10 === 0 && Math.random() < 0.5) {
         const qty = randInt(10, 30);
-        insertMovement({
+        await insertMovement({
           productId: product.id,
           type: "IN",
           quantity: qty,
@@ -180,18 +200,41 @@ async function main() {
           createdByUserId: donoId,
           source: "MANUAL",
         });
-        addStock(product.id, qty);
+        await addStock(product.id, qty);
+        trackStock(product.id, qty);
         movementCount++;
       }
     }
   }
+
+  // Os pedidos acima foram criados direto (bypassando createPedido/nextCounter) pra
+  // controlar as datas históricas — sincroniza o Counter com o número mais alto já usado,
+  // senão o próximo pedido criado pelo app de verdade recomeçaria do 1 e colidiria.
+  for (const type of ["IN", "OUT"] as const) {
+    if (pedidoNumbers[type] > 0) {
+      await prisma.counter.upsert({
+        where: { adegaId_scope: { adegaId: adega.id, scope: `pedido:${type}` } },
+        create: { adegaId: adega.id, scope: `pedido:${type}`, value: pedidoNumbers[type] },
+        update: { value: pedidoNumbers[type] },
+      });
+    }
+  }
+  await prisma.counter.upsert({
+    where: { adegaId_scope: { adegaId: adega.id, scope: "product" } },
+    create: { adegaId: adega.id, scope: "product", value: products.length },
+    update: { value: products.length },
+  });
 
   console.log(
     `Seed concluído: 1 adega, ${userIds.length} usuários, ${products.length} produtos, ${movementCount} movimentações.`
   );
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

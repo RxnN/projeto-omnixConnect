@@ -2,15 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/session";
 import { canManageProducts } from "@/lib/auth";
-import { createProduct, getProductByCode, isBarcodeTaken, updateProduct } from "@/lib/repo";
+import { createProduct, getAdegaById, getProductByCode, isBarcodeTaken, updateProduct } from "@/lib/repo";
+import type { PackageType } from "@/lib/types";
+import { withErrorHandling } from "@/lib/api-handler";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   if (!canManageProducts(user.role)) {
     return NextResponse.json({ error: "Você não tem permissão para importar produtos." }, { status: 403 });
+  }
+
+  const adega = await getAdegaById(user.adegaId);
+  if (!adega?.importEnabled) {
+    return NextResponse.json(
+      { error: "Importação em lote não está habilitada para sua adega. Fale com a gente para habilitar." },
+      { status: 403 }
+    );
   }
 
   const formData = await req.formData().catch(() => null);
@@ -58,6 +68,14 @@ export async function POST(req: NextRequest) {
     const rawBarcode = String(row["Código de Barras"] ?? "").trim();
     const barcode = rawBarcode === "" ? null : rawBarcode;
     const codeInFile = String(row["Código"] ?? "").trim();
+    const rawPackageType = String(row["Tipo de Embalagem"] ?? "").trim().toUpperCase();
+    const packageType: PackageType | null =
+      rawPackageType === "CX" || rawPackageType === "PCT" ? (rawPackageType as PackageType) : null;
+    const rawUnitsPerPackage = row["Unidades por Embalagem"];
+    const unitsPerPackage =
+      rawUnitsPerPackage === "" || rawUnitsPerPackage === undefined || rawUnitsPerPackage === null
+        ? null
+        : Number(rawUnitsPerPackage);
 
     if (!name || !category || !unit) {
       errors.push(`Linha ${rowNum}: nome, categoria e unidade são obrigatórios.`);
@@ -71,20 +89,34 @@ export async function POST(req: NextRequest) {
       errors.push(`Linha ${rowNum}: estoque mínimo inválido.`);
       continue;
     }
+    if (packageType && (unitsPerPackage === null || !Number.isInteger(unitsPerPackage) || unitsPerPackage < 1)) {
+      errors.push(`Linha ${rowNum}: informe "Unidades por Embalagem" (inteiro maior que zero) para o tipo ${packageType}.`);
+      continue;
+    }
 
-    const existing = codeInFile ? getProductByCode(codeInFile, user.adegaId) : undefined;
+    const existing = codeInFile ? await getProductByCode(codeInFile, user.adegaId) : undefined;
 
-    if (barcode && isBarcodeTaken(barcode, user.adegaId, existing?.id)) {
+    if (barcode && (await isBarcodeTaken(barcode, user.adegaId, existing?.id))) {
       errors.push(`Linha ${rowNum}: código de barras "${barcode}" já está em uso por outro produto.`);
       continue;
     }
 
     if (existing) {
-      updateProduct(existing.id, user.adegaId, { name, category, unit, costPrice, salePrice, minStockAlert, barcode });
+      await updateProduct(existing.id, user.adegaId, {
+        name,
+        category,
+        unit,
+        costPrice,
+        salePrice,
+        minStockAlert,
+        barcode,
+        packageType,
+        unitsPerPackage: packageType ? unitsPerPackage : null,
+      });
       updated++;
     } else {
       const currentStock = Number(row["Estoque Atual"]);
-      createProduct({
+      await createProduct({
         adegaId: user.adegaId,
         name,
         category,
@@ -94,10 +126,12 @@ export async function POST(req: NextRequest) {
         currentStock: Number.isNaN(currentStock) ? 0 : currentStock,
         minStockAlert,
         barcode,
+        packageType,
+        unitsPerPackage: packageType ? unitsPerPackage : null,
       });
       created++;
     }
   }
 
   return NextResponse.json({ ok: true, created, updated, errors });
-}
+});

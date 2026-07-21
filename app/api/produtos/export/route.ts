@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/session";
 import { listProducts } from "@/lib/repo";
+import { withErrorHandling } from "@/lib/api-handler";
 
-export async function GET() {
+export const GET = withErrorHandling(async (_req: NextRequest) => {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const products = listProducts(user.adegaId);
+  const products = await listProducts(user.adegaId);
   const rows = products.map((p) => ({
     Código: p.code,
     "Código de Barras": p.barcode ?? "",
@@ -18,6 +19,8 @@ export async function GET() {
     "Preço de Venda": p.salePrice,
     "Estoque Atual": p.currentStock,
     "Estoque Mínimo": p.minStockAlert ?? "",
+    "Tipo de Embalagem": p.packageType ?? "",
+    "Unidades por Embalagem": p.unitsPerPackage ?? "",
   }));
 
   const sheet = XLSX.utils.json_to_sheet(rows);
@@ -31,4 +34,4 @@ export async function GET() {
       "Content-Disposition": 'attachment; filename="produtos.xlsx"',
     },
   });
-}
+});

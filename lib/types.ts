@@ -6,6 +6,8 @@ export type PackageType = "CX" | "PCT";
 export interface Adega {
   id: string;
   name: string;
+  importEnabled: boolean;
+  approved: boolean;
   createdAt: string;
 }
 
@@ -64,6 +66,8 @@ export interface Pedido {
   totalValue: number;
   createdAt: string;
   createdByUserId: string;
+  cancelledAt: string | null;
+  cancelledByUserId: string | null;
 }
 
 export interface PedidoItem {
@@ -78,5 +82,6 @@ export interface PedidoItem {
 
 export interface PedidoWithItems extends Pedido {
   createdByName: string;
+  cancelledByName: string | null;
   items: PedidoItem[];
 }

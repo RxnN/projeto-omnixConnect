@@ -10,28 +10,40 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:seed": "tsx prisma/seed.ts"
+    "postinstall": "prisma generate",
+    "db:seed": "tsx prisma/seed.ts",
+    "toggle-import": "tsx scripts/toggle-import.ts",
+    "approve-adega": "tsx scripts/approve-adega.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.3",
-    "html5-qrcode": "^2.3.8",
+    "fast-xml-parser": "^5.10.1",
     "iron-session": "^8.0.4",
+    "jsbarcode": "^3.12.3",
     "next": "^14.2.35",
-    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^22.10.0",
-    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
+    "prisma": "^6.19.3",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.19.1",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
   }
 }
