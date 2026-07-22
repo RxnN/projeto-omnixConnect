@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { getProductById } from "@/lib/repo";
+import { getCurrentFilialId } from "@/lib/filial-context";
 import ProductForm from "@/components/ProductForm";
 
 export default async function EditarProdutoPage({ params }: { params: { id: string } }) {
   const user = await requireRole(["OWNER"]);
-  const product = await getProductById(params.id, user.adegaId);
+  const filialId = await getCurrentFilialId(user);
+  const product = await getProductById(params.id, filialId);
   if (!product) notFound();
 
   return (

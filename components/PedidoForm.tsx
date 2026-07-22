@@ -1,20 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { MovementType, PackageType, Product, Role } from "@/lib/types";
+import type { MovementType, PackageType, PaymentMethod, Product, Promotion, Role } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
-import ProductAutocomplete, { type ProductAutocompleteHandle } from "./ProductAutocomplete";
+import { getEffectivePrice } from "@/lib/pricing";
+import ProductAutocomplete from "./ProductAutocomplete";
 import NFeImport from "./NFeImport";
 
 const PACKAGE_LABEL: Record<PackageType, string> = { CX: "Caixa", PCT: "Pacote" };
 
-/** Leitores de código de barras "digitam" muito mais rápido que uma pessoa
- * (poucos ms entre caracteres) e terminam com Enter. Detectando esse padrão em
- * qualquer lugar da página, adicionamos o produto direto no pedido sem precisar
- * clicar em nenhum campo específico primeiro. */
-const SCAN_MAX_GAP_MS = 50;
-const SCAN_MIN_LENGTH = 4;
+const PAYMENT_OPTIONS: Record<MovementType, { value: PaymentMethod; label: string }[]> = {
+  OUT: [
+    { value: "CARTAO", label: "Cartão" },
+    { value: "DINHEIRO", label: "Dinheiro" },
+    { value: "PIX", label: "Pix" },
+    { value: "FIADO", label: "Fiado" },
+  ],
+  IN: [
+    { value: "BOLETO", label: "Boleto" },
+    { value: "DINHEIRO", label: "Dinheiro" },
+    { value: "PIX", label: "Pix" },
+  ],
+};
 
 interface CartItem {
   productId: string;
@@ -28,12 +36,19 @@ interface CartItem {
   /** Quantidade digitada pelo usuário, no termo do `mode` atual (unidades OU caixas/pacotes). */
   displayQty: number;
   unitValue: number;
-  source: "MANUAL" | "QRCODE";
+  /** Preço de tabela do produto (custo na entrada, venda na saída) — referência pra
+   * recalcular a promoção quando a quantidade muda, sem precisar buscar o produto de novo. */
+  basePrice: number;
 }
 
-/** Quantidade real em unidades (o que de fato entra/sai do estoque). */
+/** Quantidade real em unidades (o que de fato entra/sai do estoque), pra uma quantidade
+ * digitada arbitrária no `mode` atual do item. */
+function baseQuantityFor(item: Pick<CartItem, "mode" | "unitsPerPackage">, displayQty: number): number {
+  return item.mode === "PACKAGE" && item.unitsPerPackage ? displayQty * item.unitsPerPackage : displayQty;
+}
+
 function baseQuantity(item: CartItem): number {
-  return item.mode === "PACKAGE" && item.unitsPerPackage ? item.displayQty * item.unitsPerPackage : item.displayQty;
+  return baseQuantityFor(item, item.displayQty);
 }
 
 interface InsufficientItem {
@@ -48,22 +63,41 @@ export default function PedidoForm({
   products,
   type,
   userRole,
+  promotions = [],
 }: {
   products: Product[];
   type: MovementType;
   userRole: Role;
+  promotions?: Promotion[];
 }) {
   const router = useRouter();
   const isEntrada = type === "IN";
-  // Funcionário vende sempre pelo preço de tabela; só dono/gerente pode negociar preço.
+  // Funcionário vende sempre pelo preço de tabela (ou promocional, se houver); só
+  // dono/gerente pode negociar um preço diferente disso.
   const canEditPrice = isEntrada || userRole !== "EMPLOYEE";
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  const promotionsByProduct = useMemo(() => {
+    const map = new Map<string, Promotion[]>();
+    for (const p of promotions) {
+      const arr = map.get(p.productId) ?? [];
+      arr.push(p);
+      map.set(p.productId, arr);
+    }
+    return map;
+  }, [promotions]);
+
+  function effectivePriceFor(productId: string, basePrice: number, quantity: number): number {
+    if (isEntrada) return basePrice;
+    return getEffectivePrice(basePrice, promotionsByProduct.get(productId) ?? [], quantity);
+  }
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [insufficient, setInsufficient] = useState<InsufficientItem[]>([]);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const autocompleteRef = useRef<ProductAutocompleteHandle>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
+  const [boletoDueDays, setBoletoDueDays] = useState("");
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + baseQuantity(item) * item.unitValue, 0), [cart]);
 
@@ -74,13 +108,22 @@ export default function PedidoForm({
     setSuccess(null);
   }
 
-  function addToCart(product: Product, source: "MANUAL" | "QRCODE") {
+  function addToCart(product: Product) {
     resetMessages();
+    const basePrice = isEntrada ? product.costPrice : product.salePrice;
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
       if (existing) {
+        const displayQty = existing.displayQty + 1;
+        const qty = baseQuantityFor(existing, displayQty);
         return prev.map((item) =>
-          item.productId === product.id ? { ...item, displayQty: item.displayQty + 1, source } : item
+          item.productId === product.id
+            ? {
+                ...item,
+                displayQty,
+                unitValue: canEditPrice ? item.unitValue : effectivePriceFor(product.id, item.basePrice, qty),
+              }
+            : item
         );
       }
       return [
@@ -94,15 +137,15 @@ export default function PedidoForm({
           unitsPerPackage: product.unitsPerPackage,
           mode: "UNIT",
           displayQty: 1,
-          unitValue: isEntrada ? product.costPrice : product.salePrice,
-          source,
+          unitValue: effectivePriceFor(product.id, basePrice, 1),
+          basePrice,
         },
       ];
     });
   }
 
   /** Usado pela importação de NF-e: adiciona com a quantidade e o valor exatos da nota,
-   * em vez de incrementar 1 unidade por vez como na busca/leitor. */
+   * em vez de incrementar 1 unidade por vez como na busca. */
   function addToCartWithQuantity(product: Product, quantity: number, unitValue: number) {
     resetMessages();
     setCart((prev) => {
@@ -126,7 +169,7 @@ export default function PedidoForm({
           mode: "UNIT",
           displayQty: quantity,
           unitValue,
-          source: "MANUAL",
+          basePrice: unitValue,
         },
       ];
     });
@@ -137,67 +180,33 @@ export default function PedidoForm({
     setSuccess(`${items.length} produto(s) da NF-e adicionados ao pedido de entrada.`);
   }
 
-  function handleBarcodeScanned(code: string) {
-    fetch(`/api/product-lookup?code=${encodeURIComponent(code)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.product) {
-          addToCart(data.product, "QRCODE");
-        } else {
-          setError(data.error ?? `Produto não encontrado para o código "${code}".`);
-        }
-      })
-      .catch(() => setError("Erro ao consultar produto escaneado."));
-  }
-
-  const handleBarcodeScannedRef = useRef(handleBarcodeScanned);
-  handleBarcodeScannedRef.current = handleBarcodeScanned;
-
-  // Detecta leituras de um leitor físico de código de barras em qualquer parte da tela
-  // (sem precisar clicar em nenhum campo antes) pela velocidade de digitação das teclas.
-  useEffect(() => {
-    let buffer = "";
-    let lastTime = 0;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      const active = document.activeElement as HTMLElement | null;
-      if (active?.dataset.barcodeIgnore === "true") return;
-
-      const now = Date.now();
-      const gap = now - lastTime;
-      lastTime = now;
-
-      if (e.key === "Enter") {
-        const scanned = buffer;
-        buffer = "";
-        if (scanned.length >= SCAN_MIN_LENGTH) {
-          e.preventDefault();
-          e.stopPropagation();
-          autocompleteRef.current?.clear();
-          handleBarcodeScannedRef.current(scanned);
-        }
-        return;
-      }
-
-      if (e.key.length === 1) {
-        buffer = gap <= SCAN_MAX_GAP_MS ? buffer + e.key : e.key;
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, []);
-
-  /** Aceita apenas dígitos inteiros; qualquer outro caractere (ponto, vírgula, sinal) é ignorado. */
+  /** Aceita apenas dígitos inteiros; qualquer outro caractere (ponto, vírgula, sinal) é ignorado.
+   * Pra quem não pode editar o preço manualmente, recalcula o valor a cada mudança de
+   * quantidade — é assim que o desconto por quantidade mínima da promoção passa a valer. */
   function handleQuantityInput(productId: string, raw: string) {
     if (raw !== "" && !/^\d+$/.test(raw)) return;
     const displayQty = raw === "" ? 0 : Number(raw);
-    setCart((prev) => prev.map((item) => (item.productId === productId ? { ...item, displayQty } : item)));
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.productId !== productId) return item;
+        if (canEditPrice) return { ...item, displayQty };
+        const qty = baseQuantityFor(item, displayQty);
+        return { ...item, displayQty, unitValue: effectivePriceFor(productId, item.basePrice, qty) };
+      })
+    );
   }
 
   /** Troca entre lançar em UNID ou em CX/PCT; reinicia a quantidade para evitar conversões estranhas. */
   function updateMode(productId: string, mode: "UNIT" | "PACKAGE") {
-    setCart((prev) => prev.map((item) => (item.productId === productId ? { ...item, mode, displayQty: 1 } : item)));
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.productId !== productId) return item;
+        const updated = { ...item, mode, displayQty: 1 };
+        if (canEditPrice) return updated;
+        const qty = baseQuantityFor(updated, 1);
+        return { ...updated, unitValue: effectivePriceFor(productId, item.basePrice, qty) };
+      })
+    );
   }
 
   function updateUnitValue(productId: string, unitValue: number) {
@@ -221,9 +230,11 @@ export default function PedidoForm({
             productId: item.productId,
             quantity: baseQuantity(item),
             unitValue: item.unitValue,
-            source: item.source,
+            source: "MANUAL",
           })),
           force,
+          paymentMethod,
+          boletoDueDays: paymentMethod === "BOLETO" && boletoDueDays ? Number(boletoDueDays) : undefined,
         }),
       });
       const data = await res.json();
@@ -246,6 +257,8 @@ export default function PedidoForm({
         )}.`
       );
       setCart([]);
+      setPaymentMethod("");
+      setBoletoDueDays("");
       router.refresh();
     } catch {
       setError("Erro de conexão. Tente novamente.");
@@ -264,6 +277,14 @@ export default function PedidoForm({
       setError("Informe uma quantidade válida para todos os itens.");
       return;
     }
+    if (!paymentMethod) {
+      setError("Selecione a forma de pagamento.");
+      return;
+    }
+    if (paymentMethod === "BOLETO" && !(Number(boletoDueDays) > 0)) {
+      setError("Informe em quantos dias vence o boleto.");
+      return;
+    }
     closePedido(false);
   }
 
@@ -274,16 +295,7 @@ export default function PedidoForm({
 
         <div className="panel space-y-3">
           <label className="label">Adicionar produto ao pedido de {isEntrada ? "entrada" : "saída"}</label>
-          <ProductAutocomplete
-            ref={autocompleteRef}
-            products={products}
-            onSelect={(p) => addToCart(p, "MANUAL")}
-            autoFocus
-          />
-          <p className="text-xs" style={{ color: "var(--ink-soft)" }}>
-            Pode usar um leitor de código de barras a qualquer momento nesta tela — o produto é adicionado
-            automaticamente.
-          </p>
+          <ProductAutocomplete products={products} onSelect={(p) => addToCart(p)} autoFocus />
         </div>
       </div>
 
@@ -305,7 +317,6 @@ export default function PedidoForm({
                     <p className="font-semibold text-sm truncate">{item.name}</p>
                     <p className="text-xs truncate" style={{ color: "var(--ink-soft)" }}>
                       {item.category}
-                      {item.source === "QRCODE" && <span className="ml-1.5 font-medium text-accent">(Escaneado)</span>}
                     </p>
                   </div>
                   <button
@@ -334,7 +345,6 @@ export default function PedidoForm({
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    data-barcode-ignore="true"
                     className="input text-right w-16 py-1.5 tabular"
                     value={item.displayQty === 0 ? "" : item.displayQty}
                     onChange={(e) => handleQuantityInput(item.productId, e.target.value)}
@@ -348,7 +358,6 @@ export default function PedidoForm({
                     step="0.01"
                     disabled={!canEditPrice}
                     title={canEditPrice ? undefined : "Só dono ou gerente pode alterar o preço de venda"}
-                    data-barcode-ignore="true"
                     className="input text-right w-20 py-1.5 tabular disabled:opacity-60"
                     value={item.unitValue}
                     onChange={(e) => updateUnitValue(item.productId, Number(e.target.value))}
@@ -362,6 +371,11 @@ export default function PedidoForm({
                     = {baseQuantity(item)} un
                   </p>
                 )}
+                {!isEntrada && item.unitValue < item.basePrice && (
+                  <p className="text-xs font-semibold" style={{ color: "var(--ok)" }}>
+                    🏷 preço promocional aplicado
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -372,6 +386,36 @@ export default function PedidoForm({
             Total
           </span>
           <span className="font-display font-extrabold text-2xl tabular">{formatBRL(total)}</span>
+        </div>
+
+        <div className="space-y-2 mt-3">
+          <label className="label">{isEntrada ? "Forma de pagamento da NF-e" : "Forma de pagamento"}</label>
+          <select
+            className="input"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}
+          >
+            <option value="">Selecione...</option>
+            {PAYMENT_OPTIONS[type].map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {isEntrada && paymentMethod === "BOLETO" && (
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="input"
+              placeholder="Vencimento em quantos dias (ex: 30)"
+              value={boletoDueDays}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || /^\d+$/.test(raw)) setBoletoDueDays(raw);
+              }}
+            />
+          )}
         </div>
 
         {error && (

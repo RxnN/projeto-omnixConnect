@@ -167,6 +167,10 @@ body {
   background-color: var(--danger-soft);
   color: var(--danger);
 }
+.pill-muted {
+  background-color: var(--surface-2);
+  color: var(--ink-soft);
+}
 
 .tabular {
   font-family: var(--font-mono), monospace;

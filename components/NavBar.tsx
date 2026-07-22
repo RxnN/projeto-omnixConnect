@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { SessionData } from "@/lib/session";
+import type { Filial } from "@/lib/types";
 import ThemeToggle from "./ThemeToggle";
+import FilialSwitcher from "./FilialSwitcher";
 
 const roleLabel: Record<string, string> = {
   OWNER: "Dono",
@@ -32,11 +34,32 @@ const ICONS: Record<string, React.ReactNode> = {
       strokeLinejoin="round"
     />
   ),
+  "/filiais": (
+    <path
+      d="M4 21V8l8-4 8 4v13M9 21v-6h6v6M4 21h16"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  "/promocoes": (
+    <path
+      d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0l-6.37-6.37a2 2 0 0 1 0-2.83L11.4 3.4A2 2 0 0 1 12.83 2.8L20 3l.2 7.17a2 2 0 0 1-.6 1.43ZM15.5 8.5h.01"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
 };
 
-export default function NavBar({ user }: { user: SessionData }) {
+export default function NavBar({
+  user,
+  filiais,
+  currentFilialId,
+}: {
+  user: SessionData;
+  filiais: Filial[];
+  currentFilialId: string | null;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Fecha o drawer automaticamente ao navegar para outra tela (mobile).
@@ -53,11 +76,16 @@ export default function NavBar({ user }: { user: SessionData }) {
     links.push({ href: "/relatorios", label: "Relatórios" });
   }
   links.push({ href: "/produtos", label: "Produtos" });
+  if (user.role === "OWNER") {
+    links.push({ href: "/promocoes", label: "Promoções" });
+    links.push({ href: "/filiais", label: "Filiais" });
+  }
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
-    router.push("/");
-    router.refresh();
+    // Navegação completa (não client-side) — garante que o layout raiz re-renderize
+    // do zero sem reaproveitar o cache de rota do Next com o usuário antigo.
+    window.location.href = "/";
   }
 
   return (
@@ -97,19 +125,22 @@ export default function NavBar({ user }: { user: SessionData }) {
         }`}
         style={{ backgroundColor: "var(--surface)", borderColor: "var(--border)" }}
       >
-        <div className="px-5 py-5 border-b flex items-center justify-between gap-2" style={{ borderColor: "var(--border)" }}>
-          <span className="font-display font-extrabold text-lg tracking-tight truncate block">{user.adegaName}</span>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Fechar menu"
-            className="md:hidden flex items-center justify-center w-8 h-8 rounded-full shrink-0"
-            style={{ color: "var(--ink-soft)" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+        <div className="px-5 py-5 border-b space-y-2" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display font-extrabold text-lg tracking-tight truncate block">{user.adegaName}</span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Fechar menu"
+              className="md:hidden flex items-center justify-center w-8 h-8 rounded-full shrink-0"
+              style={{ color: "var(--ink-soft)" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+          {user.role === "OWNER" && <FilialSwitcher filiais={filiais} currentFilialId={currentFilialId} />}
         </div>
 
         <nav className="flex-1 flex flex-col gap-1 px-3 py-4">

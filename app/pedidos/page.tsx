@@ -1,13 +1,16 @@
 import { requireUser, canCancelPedidos } from "@/lib/auth";
-import { listProducts, listPedidos } from "@/lib/repo";
+import { listProducts, listPedidos, listPromotionsByFilial } from "@/lib/repo";
+import { getCurrentFilialId } from "@/lib/filial-context";
 import PedidoForm from "@/components/PedidoForm";
 import HistoricoPedidos from "@/components/HistoricoPedidos";
 
 export default async function PedidosPage() {
   const user = await requireUser();
-  const [products, pedidos] = await Promise.all([
-    listProducts(user.adegaId),
-    listPedidos(user.adegaId, { type: "OUT", limit: 20 }),
+  const filialId = await getCurrentFilialId(user);
+  const [products, pedidos, promotions] = await Promise.all([
+    listProducts(filialId, { activeOnly: true }),
+    listPedidos(filialId, { type: "OUT", limit: 20 }),
+    listPromotionsByFilial(filialId),
   ]);
 
   return (
@@ -19,7 +22,7 @@ export default async function PedidosPage() {
         </p>
       </div>
 
-      <PedidoForm products={products} type="OUT" userRole={user.role} />
+      <PedidoForm products={products} type="OUT" userRole={user.role} promotions={promotions} />
 
       <div>
         <h2 className="text-lg font-semibold mb-3">Últimos pedidos</h2>

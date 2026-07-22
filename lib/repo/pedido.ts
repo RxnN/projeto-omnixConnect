@@ -1,12 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { createId } from "../id";
-import type { MovementSource, MovementType, PedidoItem, PedidoWithItems } from "../types";
+import type { MovementSource, MovementType, PaymentMethod, PedidoItem, PedidoWithItems } from "../types";
 import { toIso } from "./shared";
 import { nextCounter } from "./counter";
 
-async function nextPedidoNumber(adegaId: string, type: MovementType): Promise<number> {
-  return nextCounter(adegaId, `pedido:${type}`);
+async function nextPedidoNumber(filialId: string, type: MovementType): Promise<number> {
+  return nextCounter(filialId, `pedido:${type}`);
 }
 
 export interface PedidoItemInput {
@@ -19,11 +19,11 @@ export interface PedidoItemInput {
 /** Verifica quais itens de um pedido de saída excedem o estoque atual (para aviso antes de forçar o fechamento).
  * Não se aplica a pedidos de entrada, que sempre aumentam o estoque. */
 export async function checkPedidoStock(
-  adegaId: string,
+  filialId: string,
   items: { productId: string; quantity: number }[]
 ): Promise<{ productId: string; productName: string; unit: string; available: number; requested: number }[]> {
   const products = await prisma.product.findMany({
-    where: { adegaId, id: { in: items.map((i) => i.productId) } },
+    where: { filialId, id: { in: items.map((i) => i.productId) } },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -48,12 +48,15 @@ export async function checkPedidoStock(
  * ajusta o estoque de cada produto, tudo em uma única transação (tudo ou nada). */
 export async function createPedido(input: {
   adegaId: string;
+  filialId: string;
   type: MovementType;
   createdByUserId: string;
   items: PedidoItemInput[];
+  paymentMethod: PaymentMethod;
+  boletoDueDays?: number | null;
 }): Promise<PedidoWithItems> {
   const pedidoId = createId("pedido");
-  const number = await nextPedidoNumber(input.adegaId, input.type);
+  const number = await nextPedidoNumber(input.filialId, input.type);
   const totalValue = input.items.reduce((sum, it) => sum + it.quantity * it.unitValue, 0);
   const stockSign = input.type === "IN" ? 1 : -1;
 
@@ -62,10 +65,13 @@ export async function createPedido(input: {
       data: {
         id: pedidoId,
         adegaId: input.adegaId,
+        filialId: input.filialId,
         type: input.type,
         number,
         totalValue,
         createdByUserId: input.createdByUserId,
+        paymentMethod: input.paymentMethod,
+        boletoDueDays: input.boletoDueDays ?? null,
       },
     });
 
@@ -75,6 +81,7 @@ export async function createPedido(input: {
         data: {
           id: createId("mov"),
           adegaId: input.adegaId,
+          filialId: input.filialId,
           productId: item.productId,
           type: input.type,
           quantity: item.quantity,
@@ -86,18 +93,19 @@ export async function createPedido(input: {
         },
       });
       await tx.product.updateMany({
-        where: { id: item.productId, adegaId: input.adegaId },
+        where: { id: item.productId, filialId: input.filialId },
         data: { currentStock: { increment: stockSign * item.quantity } },
       });
     }
   });
 
-  return (await getPedidoById(pedidoId, input.adegaId))!;
+  return (await getPedidoById(pedidoId, input.filialId))!;
 }
 
 async function attachPedidoItems(pedido: {
   id: string;
   adegaId: string;
+  filialId: string;
   type: string;
   number: number;
   totalValue: Prisma.Decimal;
@@ -105,6 +113,8 @@ async function attachPedidoItems(pedido: {
   createdByUserId: string;
   cancelledAt: Date | null;
   cancelledByUserId: string | null;
+  paymentMethod: string | null;
+  boletoDueDays: number | null;
   createdByUser: { name: string };
   cancelledByUser: { name: string } | null;
 }): Promise<PedidoWithItems> {
@@ -126,6 +136,7 @@ async function attachPedidoItems(pedido: {
   return {
     id: pedido.id,
     adegaId: pedido.adegaId,
+    filialId: pedido.filialId,
     type: pedido.type as MovementType,
     number: pedido.number,
     totalValue: pedido.totalValue.toNumber(),
@@ -133,27 +144,29 @@ async function attachPedidoItems(pedido: {
     createdByUserId: pedido.createdByUserId,
     cancelledAt: pedido.cancelledAt ? toIso(pedido.cancelledAt) : null,
     cancelledByUserId: pedido.cancelledByUserId,
+    paymentMethod: pedido.paymentMethod as PaymentMethod | null,
+    boletoDueDays: pedido.boletoDueDays,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items,
   };
 }
 
-export async function getPedidoById(id: string, adegaId: string): Promise<PedidoWithItems | undefined> {
+export async function getPedidoById(id: string, filialId: string): Promise<PedidoWithItems | undefined> {
   const pedido = await prisma.pedido.findFirst({
-    where: { id, adegaId },
+    where: { id, filialId },
     include: { createdByUser: { select: { name: true } }, cancelledByUser: { select: { name: true } } },
   });
   return pedido ? attachPedidoItems(pedido) : undefined;
 }
 
 export async function listPedidos(
-  adegaId: string,
+  filialId: string,
   opts: { type?: MovementType; from?: Date; to?: Date; limit?: number } = {}
 ): Promise<PedidoWithItems[]> {
   const pedidos = await prisma.pedido.findMany({
     where: {
-      adegaId,
+      filialId,
       ...(opts.type ? { type: opts.type } : {}),
       ...(opts.from || opts.to
         ? { createdAt: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
@@ -191,6 +204,7 @@ export async function listPedidos(
   return pedidos.map((pedido) => ({
     id: pedido.id,
     adegaId: pedido.adegaId,
+    filialId: pedido.filialId,
     type: pedido.type as MovementType,
     number: pedido.number,
     totalValue: pedido.totalValue.toNumber(),
@@ -198,6 +212,8 @@ export async function listPedidos(
     createdByUserId: pedido.createdByUserId,
     cancelledAt: pedido.cancelledAt ? toIso(pedido.cancelledAt) : null,
     cancelledByUserId: pedido.cancelledByUserId,
+    paymentMethod: pedido.paymentMethod as PaymentMethod | null,
+    boletoDueDays: pedido.boletoDueDays,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items: itemsByPedido.get(pedido.id) ?? [],
@@ -218,7 +234,7 @@ export interface PedidoCancelBlocker {
 export async function checkPedidoCancelStock(pedido: PedidoWithItems): Promise<PedidoCancelBlocker[]> {
   if (pedido.type !== "IN") return [];
   const products = await prisma.product.findMany({
-    where: { adegaId: pedido.adegaId, id: { in: pedido.items.map((i) => i.productId) } },
+    where: { filialId: pedido.filialId, id: { in: pedido.items.map((i) => i.productId) } },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -245,10 +261,10 @@ export async function checkPedidoCancelStock(pedido: PedidoWithItems): Promise<P
  * como cancelado e passa a ser ignorado pelos relatórios (getFaturamento, etc). */
 export async function cancelPedido(
   id: string,
-  adegaId: string,
+  filialId: string,
   cancelledByUserId: string
 ): Promise<PedidoWithItems | undefined> {
-  const pedido = await getPedidoById(id, adegaId);
+  const pedido = await getPedidoById(id, filialId);
   if (!pedido || pedido.cancelledAt) return pedido;
 
   const stockSign = pedido.type === "IN" ? -1 : 1;
@@ -256,7 +272,7 @@ export async function cancelPedido(
   await prisma.$transaction(async (tx) => {
     for (const item of pedido.items) {
       await tx.product.updateMany({
-        where: { id: item.productId, adegaId },
+        where: { id: item.productId, filialId },
         data: { currentStock: { increment: stockSign * item.quantity } },
       });
     }
@@ -266,5 +282,5 @@ export async function cancelPedido(
     });
   });
 
-  return getPedidoById(id, adegaId);
+  return getPedidoById(id, filialId);
 }

@@ -1,13 +1,15 @@
 import { requireUser, canCancelPedidos } from "@/lib/auth";
 import { listProducts, listPedidos } from "@/lib/repo";
+import { getCurrentFilialId } from "@/lib/filial-context";
 import PedidoForm from "@/components/PedidoForm";
 import HistoricoPedidos from "@/components/HistoricoPedidos";
 
 export default async function EntradaPage() {
   const user = await requireUser();
+  const filialId = await getCurrentFilialId(user);
   const [products, pedidos] = await Promise.all([
-    listProducts(user.adegaId),
-    listPedidos(user.adegaId, { type: "IN", limit: 20 }),
+    listProducts(filialId, { activeOnly: true }),
+    listPedidos(filialId, { type: "IN", limit: 20 }),
   ]);
 
   return (

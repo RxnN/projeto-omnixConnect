@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +24,10 @@ export default function LoginForm() {
         setLoading(false);
         return;
       }
-      router.push("/pedidos");
-      router.refresh();
+      // Navegação completa — garante que toda a árvore (layout + página) renderize do
+      // zero pra sessão nova, sem reaproveitar cache de rota de uma conta anterior
+      // (ex: papel/preços de um dono aparecendo depois de logar como funcionário).
+      window.location.href = "/pedidos";
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);

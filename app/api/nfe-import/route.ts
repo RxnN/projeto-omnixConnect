@@ -3,6 +3,7 @@ import { XMLParser } from "fast-xml-parser";
 import { getCurrentUser } from "@/lib/session";
 import { getProductsByBarcodes } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
+import { getCurrentFilialId } from "@/lib/filial-context";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // Sanidade contra XML forjado com um número absurdo de itens (cada item viraria uma
@@ -88,7 +89,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // consulta por item (que com uma nota maliciosa de muitos itens vira uma enxurrada de
   // conexões simultâneas no banco compartilhado por todas as adegas).
   const eans = Array.from(new Set(parsedItems.map((it) => it.ean).filter((e): e is string => Boolean(e))));
-  const matchedProducts = await getProductsByBarcodes(eans, user.adegaId);
+  const filialId = await getCurrentFilialId(user);
+  const matchedProducts = await getProductsByBarcodes(eans, filialId);
   const matchedByBarcode = new Map(matchedProducts.filter((p) => p.barcode).map((p) => [p.barcode as string, p]));
 
   const items = parsedItems.map((it) => {

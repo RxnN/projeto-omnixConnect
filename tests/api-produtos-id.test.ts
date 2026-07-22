@@ -8,7 +8,8 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { getCurrentUser } from "@/lib/session";
-import { PUT, DELETE } from "@/app/api/produtos/[id]/route";
+import { PUT } from "@/app/api/produtos/[id]/route";
+import { POST as statusPost } from "@/app/api/produtos/[id]/status/route";
 
 function makeRequest(method: string, body?: unknown) {
   return new NextRequest("http://localhost/api/produtos/x", {
@@ -18,8 +19,16 @@ function makeRequest(method: string, body?: unknown) {
   });
 }
 
-async function loginAs(adegaId: string, adegaName: string, userId: string, name: string, email: string, role: "OWNER" | "MANAGER" | "EMPLOYEE") {
-  vi.mocked(getCurrentUser).mockResolvedValue({ userId, adegaId, adegaName, name, email, role });
+async function loginAs(
+  adegaId: string,
+  filialId: string,
+  adegaName: string,
+  userId: string,
+  name: string,
+  email: string,
+  role: "OWNER" | "MANAGER" | "EMPLOYEE"
+) {
+  vi.mocked(getCurrentUser).mockResolvedValue({ userId, adegaId, adegaName, filialId, name, email, role });
 }
 
 describe("PUT /api/produtos/[id]", () => {
@@ -27,11 +36,11 @@ describe("PUT /api/produtos/[id]", () => {
     vi.mocked(getCurrentUser).mockReset();
   });
 
-  it("não permite editar produto de outra adega (isolamento multi-tenant)", async () => {
-    const { adega, user } = await seedFixture();
+  it("não permite editar produto de outra filial (isolamento multi-tenant)", async () => {
+    const { adega, filial, user } = await seedFixture();
     const other = await seedFixture();
-    const foreignProduct = await seedProduct(other.adega.id);
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const foreignProduct = await seedProduct(other.filial);
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await PUT(
       makeRequest("PUT", { name: "Hack", category: "C", unit: "un", costPrice: 1, salePrice: 2 }),
@@ -42,8 +51,8 @@ describe("PUT /api/produtos/[id]", () => {
   });
 
   it("funcionário não pode editar produto", async () => {
-    const { adega } = await seedFixture();
-    const product = await seedProduct(adega.id);
+    const { adega, filial } = await seedFixture();
+    const product = await seedProduct(filial);
     const employee = await createUser({
       adegaId: adega.id,
       name: "Funcionário",
@@ -51,7 +60,7 @@ describe("PUT /api/produtos/[id]", () => {
       passwordHash: "x",
       role: "EMPLOYEE",
     });
-    await loginAs(adega.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+    await loginAs(adega.id, filial.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
 
     const res = await PUT(
       makeRequest("PUT", { name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2 }),
@@ -62,9 +71,9 @@ describe("PUT /api/produtos/[id]", () => {
   });
 
   it("atualiza produto com dados válidos", async () => {
-    const { adega, user } = await seedFixture();
-    const product = await seedProduct(adega.id, { salePrice: 10 });
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const { adega, filial, user } = await seedFixture();
+    const product = await seedProduct(filial, { salePrice: 10 });
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await PUT(
       makeRequest("PUT", { name: "Atualizado", category: "C", unit: "un", costPrice: 1, salePrice: 25 }),
@@ -78,25 +87,50 @@ describe("PUT /api/produtos/[id]", () => {
   });
 });
 
-describe("DELETE /api/produtos/[id]", () => {
+describe("POST /api/produtos/[id]/status", () => {
   afterEach(() => {
     vi.mocked(getCurrentUser).mockReset();
   });
 
-  it("não permite excluir produto de outra adega", async () => {
-    const { adega, user } = await seedFixture();
-    const other = await seedFixture();
-    const foreignProduct = await seedProduct(other.adega.id);
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+  it("inativa um produto", async () => {
+    const { adega, filial, user } = await seedFixture();
+    const product = await seedProduct(filial);
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
-    const res = await DELETE(makeRequest("DELETE"), { params: { id: foreignProduct.id } });
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.product.active).toBe(false);
+  });
+
+  it("reativa um produto", async () => {
+    const { adega, filial, user } = await seedFixture();
+    const product = await seedProduct(filial);
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
+
+    await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
+    const res = await statusPost(makeRequest("POST", { active: true }), { params: { id: product.id } });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.product.active).toBe(true);
+  });
+
+  it("não permite inativar produto de outra filial", async () => {
+    const { adega, filial, user } = await seedFixture();
+    const other = await seedFixture();
+    const foreignProduct = await seedProduct(other.filial);
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
+
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: foreignProduct.id } });
 
     expect(res.status).toBe(404);
   });
 
-  it("funcionário não pode excluir produto", async () => {
-    const { adega } = await seedFixture();
-    const product = await seedProduct(adega.id);
+  it("funcionário não pode inativar produto", async () => {
+    const { adega, filial } = await seedFixture();
+    const product = await seedProduct(filial);
     const employee = await createUser({
       adegaId: adega.id,
       name: "Funcionário",
@@ -104,9 +138,9 @@ describe("DELETE /api/produtos/[id]", () => {
       passwordHash: "x",
       role: "EMPLOYEE",
     });
-    await loginAs(adega.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+    await loginAs(adega.id, filial.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
 
-    const res = await DELETE(makeRequest("DELETE"), { params: { id: product.id } });
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
 
     expect(res.status).toBe(403);
   });

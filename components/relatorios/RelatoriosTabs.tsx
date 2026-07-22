@@ -8,11 +8,14 @@ import FaturamentoSection from "./FaturamentoSection";
 import SugestaoCompraTable from "./SugestaoCompraTable";
 import RecorrenciaTable from "./RecorrenciaTable";
 import PeriodoFilter from "./PeriodoFilter";
+import FilialFilter from "./FilialFilter";
 
 type TabKey = "estoque" | "rentabilidade" | "faturamento" | "sugestao" | "recorrencia";
 
 export default function RelatoriosTabs({
   isOwner,
+  filiais,
+  filialId,
   estoque,
   rentabilidade,
   faturamentoResumo,
@@ -26,6 +29,8 @@ export default function RelatoriosTabs({
   searchTo,
 }: {
   isOwner: boolean;
+  filiais: { id: string; name: string }[];
+  filialId?: string;
   estoque: EstoqueItem[];
   rentabilidade: { resumo: RentabilidadeResumo; porProduto: RentabilidadeItem[] } | null;
   faturamentoResumo: FaturamentoResumo;
@@ -70,7 +75,10 @@ export default function RelatoriosTabs({
             </button>
           ))}
         </div>
-        {showPeriodoFilter && <PeriodoFilter periodo={periodo} from={searchFrom} to={searchTo} />}
+        <div className="flex flex-wrap items-center gap-2">
+          {isOwner && <FilialFilter filiais={filiais} filialId={filialId} />}
+          {showPeriodoFilter && <PeriodoFilter periodo={periodo} from={searchFrom} to={searchTo} />}
+        </div>
       </div>
 
       {tab === "estoque" && (

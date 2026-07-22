@@ -6,6 +6,7 @@
 // o mesmo Postgres pode estar hospedando outras adegas reais.
 
 import bcrypt from "bcryptjs";
+import type { PaymentMethod } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { createId } from "../lib/id";
 
@@ -22,6 +23,15 @@ function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+const OUT_PAYMENT_METHODS: PaymentMethod[] = ["CARTAO", "DINHEIRO", "PIX", "FIADO"];
+const IN_PAYMENT_METHODS: PaymentMethod[] = ["BOLETO", "DINHEIRO", "PIX"];
+
+function randomPaymentMethod(type: "IN" | "OUT"): { paymentMethod: PaymentMethod; boletoDueDays: number | null } {
+  const options = type === "OUT" ? OUT_PAYMENT_METHODS : IN_PAYMENT_METHODS;
+  const paymentMethod = options[randInt(0, options.length - 1)];
+  return { paymentMethod, boletoDueDays: paymentMethod === "BOLETO" ? randInt(1, 4) * 15 : null };
+}
+
 async function main() {
   const existingOwner = await prisma.user.findUnique({ where: { email: DEMO_OWNER_EMAIL } });
   if (existingOwner) {
@@ -30,29 +40,41 @@ async function main() {
     await prisma.movement.deleteMany({ where: { adegaId } });
     await prisma.pedido.deleteMany({ where: { adegaId } });
     await prisma.product.deleteMany({ where: { adegaId } });
-    await prisma.counter.deleteMany({ where: { adegaId } });
+    await prisma.counter.deleteMany({ where: { filial: { adegaId } } });
     await prisma.user.deleteMany({ where: { adegaId } });
+    await prisma.filial.deleteMany({ where: { adegaId } });
     await prisma.adega.deleteMany({ where: { id: adegaId } });
   }
 
   console.log("Criando adega...");
+  const paidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const adega = await prisma.adega.create({
-    data: { id: createId("adega"), name: "Adega do Renan", importEnabled: true, approved: true },
+    data: { id: createId("adega"), name: "Adega do Renan", importEnabled: true, approved: true, paidUntil },
+  });
+
+  console.log("Criando filial...");
+  const filial = await prisma.filial.create({
+    data: { id: createId("filial"), adegaId: adega.id, name: "Adega do Renan" },
   });
 
   console.log("Criando usuários...");
   const passwordHash = await bcrypt.hash("senha123", 10);
 
-  async function insertUser(name: string, email: string, role: "OWNER" | "MANAGER" | "EMPLOYEE") {
+  async function insertUser(
+    name: string,
+    email: string,
+    role: "OWNER" | "MANAGER" | "EMPLOYEE",
+    filialId: string | null
+  ) {
     const user = await prisma.user.create({
-      data: { id: createId("user"), adegaId: adega.id, name, email, passwordHash, role },
+      data: { id: createId("user"), adegaId: adega.id, filialId, name, email, passwordHash, role },
     });
     return user.id;
   }
 
-  const donoId = await insertUser("Renan Fernandes", DEMO_OWNER_EMAIL, "OWNER");
-  const gerenteId = await insertUser("Marina Souza", "gerente@adega.com", "MANAGER");
-  const funcionarioId = await insertUser("João Pereira", "funcionario@adega.com", "EMPLOYEE");
+  const donoId = await insertUser("Renan Fernandes", DEMO_OWNER_EMAIL, "OWNER", null);
+  const gerenteId = await insertUser("Marina Souza", "gerente@adega.com", "MANAGER", filial.id);
+  const funcionarioId = await insertUser("João Pereira", "funcionario@adega.com", "EMPLOYEE", filial.id);
   const userIds = [donoId, gerenteId, funcionarioId];
 
   console.log("Criando produtos...");
@@ -77,6 +99,7 @@ async function main() {
       data: {
         id: createId("prod"),
         adegaId: adega.id,
+        filialId: filial.id,
         code,
         name: p.name,
         category: p.category,
@@ -106,21 +129,26 @@ async function main() {
   }) {
     const totalValue = opts.quantity * opts.unitValue;
     pedidoNumbers[opts.type] += 1;
+    const { paymentMethod, boletoDueDays } = randomPaymentMethod(opts.type);
     const pedido = await prisma.pedido.create({
       data: {
         id: createId("pedido"),
         adegaId: adega.id,
+        filialId: filial.id,
         type: opts.type,
         number: pedidoNumbers[opts.type],
         totalValue,
         createdAt: opts.createdAt,
         createdByUserId: opts.createdByUserId,
+        paymentMethod,
+        boletoDueDays,
       },
     });
     await prisma.movement.create({
       data: {
         id: createId("mov"),
         adegaId: adega.id,
+        filialId: filial.id,
         productId: opts.productId,
         type: opts.type,
         quantity: opts.quantity,
@@ -170,7 +198,7 @@ async function main() {
       if (Math.random() < product.freq) {
         const qty = randInt(1, 5);
         const userId = userIds[randInt(0, userIds.length - 1)];
-        const source = Math.random() < 0.4 ? "QRCODE" : "MANUAL";
+        const source = "MANUAL";
         const current = getStock(product.id);
         const effectiveQty = Math.min(qty, current);
         if (effectiveQty > 0) {
@@ -213,20 +241,20 @@ async function main() {
   for (const type of ["IN", "OUT"] as const) {
     if (pedidoNumbers[type] > 0) {
       await prisma.counter.upsert({
-        where: { adegaId_scope: { adegaId: adega.id, scope: `pedido:${type}` } },
-        create: { adegaId: adega.id, scope: `pedido:${type}`, value: pedidoNumbers[type] },
+        where: { filialId_scope: { filialId: filial.id, scope: `pedido:${type}` } },
+        create: { filialId: filial.id, scope: `pedido:${type}`, value: pedidoNumbers[type] },
         update: { value: pedidoNumbers[type] },
       });
     }
   }
   await prisma.counter.upsert({
-    where: { adegaId_scope: { adegaId: adega.id, scope: "product" } },
-    create: { adegaId: adega.id, scope: "product", value: products.length },
+    where: { filialId_scope: { filialId: filial.id, scope: "product" } },
+    create: { filialId: filial.id, scope: "product", value: products.length },
     update: { value: products.length },
   });
 
   console.log(
-    `Seed concluído: 1 adega, ${userIds.length} usuários, ${products.length} produtos, ${movementCount} movimentações.`
+    `Seed concluído: 1 adega, 1 filial, ${userIds.length} usuários, ${products.length} produtos, ${movementCount} movimentações.`
   );
 }
 

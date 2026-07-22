@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createUser } from "@/lib/repo";
-import { seedFixture, seedProduct } from "./helpers";
+import { seedFixture } from "./helpers";
 
 vi.mock("@/lib/session", () => ({
   getCurrentUser: vi.fn(),
@@ -20,8 +20,16 @@ function makeRequest(body: unknown) {
   });
 }
 
-async function loginAs(adegaId: string, adegaName: string, userId: string, name: string, email: string, role: "OWNER" | "MANAGER" | "EMPLOYEE") {
-  vi.mocked(getCurrentUser).mockResolvedValue({ userId, adegaId, adegaName, name, email, role });
+async function loginAs(
+  adegaId: string,
+  filialId: string,
+  adegaName: string,
+  userId: string,
+  name: string,
+  email: string,
+  role: "OWNER" | "MANAGER" | "EMPLOYEE"
+) {
+  vi.mocked(getCurrentUser).mockResolvedValue({ userId, adegaId, adegaName, filialId, name, email, role });
 }
 
 describe("POST /api/produtos", () => {
@@ -38,7 +46,7 @@ describe("POST /api/produtos", () => {
   });
 
   it("funcionário não pode cadastrar produto", async () => {
-    const { adega } = await seedFixture();
+    const { adega, filial } = await seedFixture();
     const employee = await createUser({
       adegaId: adega.id,
       name: "Funcionário",
@@ -46,7 +54,7 @@ describe("POST /api/produtos", () => {
       passwordHash: "x",
       role: "EMPLOYEE",
     });
-    await loginAs(adega.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+    await loginAs(adega.id, filial.id, adega.name, employee.id, employee.name, employee.email, "EMPLOYEE");
 
     const res = await POST(makeRequest({ name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2 }));
 
@@ -54,7 +62,7 @@ describe("POST /api/produtos", () => {
   });
 
   it("gerente não pode cadastrar produto (só o dono)", async () => {
-    const { adega } = await seedFixture();
+    const { adega, filial } = await seedFixture();
     const manager = await createUser({
       adegaId: adega.id,
       name: "Gerente",
@@ -62,7 +70,7 @@ describe("POST /api/produtos", () => {
       passwordHash: "x",
       role: "MANAGER",
     });
-    await loginAs(adega.id, adega.name, manager.id, manager.name, manager.email, "MANAGER");
+    await loginAs(adega.id, filial.id, adega.name, manager.id, manager.name, manager.email, "MANAGER");
 
     const res = await POST(makeRequest({ name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2 }));
 
@@ -70,8 +78,8 @@ describe("POST /api/produtos", () => {
   });
 
   it("rejeita preço de custo negativo", async () => {
-    const { adega, user } = await seedFixture();
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const { adega, filial, user } = await seedFixture();
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await POST(
       makeRequest({ name: "X", category: "C", unit: "un", costPrice: -1, salePrice: 2, currentStock: 0 })
@@ -83,8 +91,8 @@ describe("POST /api/produtos", () => {
   });
 
   it("rejeita estoque inicial fracionado", async () => {
-    const { adega, user } = await seedFixture();
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const { adega, filial, user } = await seedFixture();
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await POST(
       makeRequest({ name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2, currentStock: 2.5 })
@@ -93,10 +101,9 @@ describe("POST /api/produtos", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejeita código de barras duplicado na mesma adega", async () => {
-    const { adega, user } = await seedFixture();
-    await seedProduct(adega.id, { barcode: "7891234567895" });
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+  it("ignora código de barras enviado pelo cliente (não é mais um campo aceito)", async () => {
+    const { adega, filial, user } = await seedFixture();
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await POST(
       makeRequest({
@@ -111,34 +118,13 @@ describe("POST /api/produtos", () => {
     );
     const json = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(json.error).toMatch(/código de barras/);
-  });
-
-  it("o mesmo código de barras pode existir em outra adega", async () => {
-    const { adega, user } = await seedFixture();
-    const other = await seedFixture();
-    await seedProduct(other.adega.id, { barcode: "7891234567895" });
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
-
-    const res = await POST(
-      makeRequest({
-        name: "Novo",
-        category: "C",
-        unit: "un",
-        costPrice: 1,
-        salePrice: 2,
-        currentStock: 0,
-        barcode: "7891234567895",
-      })
-    );
-
     expect(res.status).toBe(200);
+    expect(json.product.barcode).toBeNull();
   });
 
   it("exige unidades por embalagem quando informa tipo de embalagem", async () => {
-    const { adega, user } = await seedFixture();
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const { adega, filial, user } = await seedFixture();
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await POST(
       makeRequest({
@@ -157,8 +143,8 @@ describe("POST /api/produtos", () => {
   });
 
   it("cadastra produto com dados válidos", async () => {
-    const { adega, user } = await seedFixture();
-    await loginAs(adega.id, adega.name, user.id, user.name, user.email, "OWNER");
+    const { adega, filial, user } = await seedFixture();
+    await loginAs(adega.id, filial.id, adega.name, user.id, user.name, user.email, "OWNER");
 
     const res = await POST(
       makeRequest({ name: "Vinho Teste", category: "Vinho", unit: "un", costPrice: 10.5, salePrice: 19.9, currentStock: 5 })

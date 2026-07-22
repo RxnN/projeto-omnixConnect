@@ -1,23 +1,21 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Product } from "@/lib/types";
 
 const MAX_RESULTS = 20;
 
-export interface ProductAutocompleteHandle {
-  clear: () => void;
-}
-
-const ProductAutocomplete = forwardRef<
-  ProductAutocompleteHandle,
-  {
-    products: Product[];
-    onSelect: (product: Product) => void;
-    placeholder?: string;
-    autoFocus?: boolean;
-  }
->(function ProductAutocomplete({ products, onSelect, placeholder, autoFocus }, ref) {
+export default function ProductAutocomplete({
+  products,
+  onSelect,
+  placeholder,
+  autoFocus,
+}: {
+  products: Product[];
+  onSelect: (product: Product) => void;
+  placeholder?: string;
+  autoFocus?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -29,23 +27,11 @@ const ProductAutocomplete = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useImperativeHandle(ref, () => ({
-    clear: () => {
-      setQuery("");
-      setOpen(false);
-    },
-  }));
-
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products.slice(0, MAX_RESULTS);
     return products
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.code.toLowerCase().includes(q) ||
-          (p.barcode ?? "").toLowerCase().includes(q)
-      )
+      .filter((p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
       .slice(0, MAX_RESULTS);
   }, [products, query]);
 
@@ -94,7 +80,7 @@ const ProductAutocomplete = forwardRef<
         type="text"
         autoComplete="off"
         className="input"
-        placeholder={placeholder ?? "Digite o nome, código ou código de barras..."}
+        placeholder={placeholder ?? "Digite o nome ou código do produto..."}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -137,6 +123,4 @@ const ProductAutocomplete = forwardRef<
       )}
     </div>
   );
-});
-
-export default ProductAutocomplete;
+}

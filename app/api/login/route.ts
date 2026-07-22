@@ -50,6 +50,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     userId: user.id,
     adegaId: user.adegaId,
     adegaName: adega?.name ?? "Adega",
+    filialId: user.filialId,
     name: user.name,
     email: user.email,
     role: user.role,

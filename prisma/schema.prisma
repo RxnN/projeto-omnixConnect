@@ -28,40 +28,90 @@ enum PackageType {
   PCT
 }
 
+/// Forma de pagamento de um Pedido. Saída (venda): CARTAO/DINHEIRO/PIX/FIADO.
+/// Entrada (recebimento de NF-e): BOLETO/DINHEIRO/PIX. A restrição de qual valor
+/// vale pra qual tipo é validada na aplicação (lib/validation.ts), não no banco.
+enum PaymentMethod {
+  DINHEIRO
+  PIX
+  CARTAO
+  FIADO
+  BOLETO
+}
+
 model Adega {
   id             String     @id @default(cuid())
   name           String
+  /// CNPJ (14 dígitos) ou CPF (11 dígitos) só com números — nullable pra não exigir
+  /// backfill de contas antigas, mas sempre preenchido no cadastro novo (validado em
+  /// lib/validation.ts).
+  cnpjCpf        String?
   /// Importação em lote de produtos (planilha) é um recurso pago, liberado manualmente
   /// por adega — não é auto-habilitado no cadastro self-service.
   importEnabled  Boolean    @default(false)
   /// Conta fica travada (sem acesso ao app) até o pagamento ser confirmado e a conta
   /// ser aprovada manualmente. Cadastro self-service sempre nasce com approved = false.
   approved       Boolean    @default(false)
+  /// Até quando o pagamento cobre o acesso. Null = sem vencimento controlado (conta
+  /// nunca aprovada ainda, ou aprovada manualmente sem prazo). Vencida, o acesso é
+  /// re-travado automaticamente (ver requireUser em lib/auth.ts) até renovar.
+  paidUntil      DateTime?
+  /// Quantas filiais essa conta pode ter — licenciado manualmente por você (ver
+  /// scripts/set-max-filiais.ts), não um recurso auto-serviço. Toda adega já nasce
+  /// com 1 (a matriz criada no cadastro/migração).
+  maxFiliais     Int        @default(1)
   createdAt      DateTime   @default(now())
   users          User[]
   products       Product[]
   movements      Movement[]
   pedidos        Pedido[]
-  counters       Counter[]
+  filiais        Filial[]
+  promotions     Promotion[]
 }
 
-/// Contador atômico por adega (código de produto, número de pedido por tipo, etc).
+/// Local físico dentro de uma Adega (empresa/conta). Uma adega sempre tem pelo menos
+/// 1 filial (a "matriz" criada automaticamente na migração/cadastro); redes com mais
+/// de um estabelecimento cadastram filiais adicionais em /filiais.
+model Filial {
+  id        String     @id @default(cuid())
+  adegaId   String
+  adega     Adega      @relation(fields: [adegaId], references: [id])
+  name      String
+  createdAt DateTime   @default(now())
+  users     User[]
+  products  Product[]
+  pedidos   Pedido[]
+  movements Movement[]
+  counters  Counter[]
+  promotions Promotion[]
+
+  @@index([adegaId])
+}
+
+/// Contador atômico por filial (código de produto, número de pedido por tipo, etc).
 /// O upsert com increment é uma única instrução UPDATE no Postgres — o próprio banco
 /// serializa concorrência na mesma linha, sem precisar de lock explícito na aplicação.
 model Counter {
-  adegaId String
-  adega   Adega  @relation(fields: [adegaId], references: [id])
-  scope   String
-  value   Int    @default(0)
+  filialId String
+  filial   Filial @relation(fields: [filialId], references: [id])
+  scope    String
+  value    Int    @default(0)
 
-  @@id([adegaId, scope])
+  @@id([filialId, scope])
 }
 
 model User {
   id           String     @id @default(cuid())
   adegaId      String
   adega        Adega      @relation(fields: [adegaId], references: [id])
+  /// Null = OWNER (enxerga/administra todas as filiais da adega). MANAGER e EMPLOYEE
+  /// são sempre escopados a uma filial específica (regra validada na aplicação).
+  filialId     String?
+  filial       Filial?    @relation(fields: [filialId], references: [id])
   name         String
+  /// Telefone/WhatsApp de contato — nullable pra não exigir backfill de contas antigas,
+  /// mas sempre preenchido no cadastro novo (validado em lib/validation.ts).
+  phone        String?
   email        String     @unique
   passwordHash String
   role         Role
@@ -69,12 +119,17 @@ model User {
   movements    Movement[] @relation("MovementCreatedBy")
   pedidos      Pedido[]   @relation("PedidoCreatedBy")
   pedidosCancelados Pedido[] @relation("PedidoCancelledBy")
+  promotions   Promotion[]
 }
 
 model Product {
   id            String     @id @default(cuid())
   adegaId       String
   adega         Adega      @relation(fields: [adegaId], references: [id])
+  /// Cada filial tem seu próprio catálogo/estoque — adegaId fica denormalizado aqui
+  /// só pra permitir relatório consolidado da empresa sem precisar de join.
+  filialId      String
+  filial        Filial     @relation(fields: [filialId], references: [id])
   code          String
   barcode       String?
   name          String
@@ -90,18 +145,54 @@ model Product {
   minStockAlert Int?
   packageType   PackageType?
   unitsPerPackage Int?
+  /// Inativar (em vez de excluir) preserva o histórico de movimentações/relatórios.
+  /// Produto inativo some da busca em Pedidos/Entrada mas continua visível em /produtos.
+  active        Boolean    @default(true)
   createdAt     DateTime   @default(now())
   movements     Movement[]
+  promotions    Promotion[]
 
   @@index([adegaId])
-  @@unique([adegaId, code])
-  @@unique([adegaId, barcode])
+  @@index([filialId])
+  @@unique([filialId, code])
+  @@unique([filialId, barcode])
+}
+
+/// Promoção de venda de um produto, sempre escopada a uma filial (o mesmo produto pode
+/// estar em promoção numa filial e não em outra — catálogo e preço são independentes por
+/// loja). O preço promocional nunca é gravado permanentemente: é calculado na hora da
+/// venda (ver lib/pricing.ts) a partir de startDate/endDate/minQuantity, então "voltar ao
+/// preço normal" acontece sozinho quando a condição deixa de valer, sem precisar de job.
+model Promotion {
+  id              String    @id @default(cuid())
+  adegaId         String
+  adega           Adega     @relation(fields: [adegaId], references: [id])
+  filialId        String
+  filial          Filial    @relation(fields: [filialId], references: [id])
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  promoPrice      Decimal   @db.Decimal(12, 2)
+  /// Null = sem limite nesse lado (sempre ativa desde sempre / até cancelar).
+  startDate       DateTime?
+  endDate         DateTime?
+  /// Null = vale a partir de 1 unidade. Preenchido = desconto por quantidade (leve mais,
+  /// pague menos), só se aplica quando a quantidade do item no pedido atingir esse mínimo.
+  minQuantity     Int?
+  createdAt       DateTime  @default(now())
+  createdByUserId String
+  createdByUser   User      @relation(fields: [createdByUserId], references: [id])
+
+  @@index([adegaId])
+  @@index([filialId])
+  @@index([productId])
 }
 
 model Pedido {
   id              String       @id @default(cuid())
   adegaId         String
   adega           Adega        @relation(fields: [adegaId], references: [id])
+  filialId        String
+  filial          Filial       @relation(fields: [filialId], references: [id])
   type            MovementType @default(OUT)
   number          Int
   totalValue      Decimal      @db.Decimal(12, 2)
@@ -111,17 +202,24 @@ model Pedido {
   cancelledAt     DateTime?
   cancelledByUserId String?
   cancelledByUser User?        @relation("PedidoCancelledBy", fields: [cancelledByUserId], references: [id])
+  /// Null só em pedidos antigos, de antes desse campo existir.
+  paymentMethod   PaymentMethod?
+  /// Só preenchido quando paymentMethod = BOLETO: prazo de vencimento em dias.
+  boletoDueDays   Int?
   items           Movement[]
 
   @@index([adegaId])
   @@index([adegaId, type, createdAt])
-  @@unique([adegaId, type, number])
+  @@index([filialId, type, createdAt])
+  @@unique([filialId, type, number])
 }
 
 model Movement {
   id              String         @id @default(cuid())
   adegaId         String
   adega           Adega          @relation(fields: [adegaId], references: [id])
+  filialId        String
+  filial          Filial         @relation(fields: [filialId], references: [id])
   productId       String
   product         Product        @relation(fields: [productId], references: [id])
   type            MovementType
@@ -136,6 +234,7 @@ model Movement {
   pedido          Pedido?        @relation(fields: [pedidoId], references: [id])
 
   @@index([adegaId])
+  @@index([filialId])
   @@index([productId])
   @@index([createdAt])
   @@index([pedidoId])

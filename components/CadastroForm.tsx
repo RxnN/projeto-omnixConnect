@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function CadastroForm() {
-  const router = useRouter();
   const [adegaName, setAdegaName] = useState("");
+  const [cnpjCpf, setCnpjCpf] = useState("");
   const [userName, setUserName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export default function CadastroForm() {
       const res = await fetch("/api/cadastro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adegaName, userName, email, password }),
+        body: JSON.stringify({ adegaName, cnpjCpf, userName, phone, email, password }),
       });
       
       const data = await res.json();
@@ -39,8 +39,9 @@ export default function CadastroForm() {
         return;
       }
 
-      router.push("/pedidos");
-      router.refresh();
+      // Navegação completa — mesmo motivo do LoginForm: evita reaproveitar cache de rota
+      // de uma sessão anterior (ex: testar como funcionário logo depois de estar como dono).
+      window.location.href = "/pedidos";
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
@@ -51,7 +52,7 @@ export default function CadastroForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="label" htmlFor="adegaName">
-          Nome da Adega
+          Nome da Empresa
         </label>
         <input
           id="adegaName"
@@ -61,6 +62,21 @@ export default function CadastroForm() {
           value={adegaName}
           onChange={(e) => setAdegaName(e.target.value)}
           placeholder="Ex: Adega do Porto"
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="cnpjCpf">
+          CNPJ ou CPF
+        </label>
+        <input
+          id="cnpjCpf"
+          type="text"
+          required
+          className="input"
+          value={cnpjCpf}
+          onChange={(e) => setCnpjCpf(e.target.value)}
+          placeholder="Só números"
         />
       </div>
 
@@ -76,6 +92,21 @@ export default function CadastroForm() {
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
           placeholder="Ex: João Silva"
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="phone">
+          Contato (telefone/WhatsApp)
+        </label>
+        <input
+          id="phone"
+          type="tel"
+          required
+          className="input"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Ex: (11) 91234-5678"
         />
       </div>
 

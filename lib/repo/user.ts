@@ -21,6 +21,7 @@ export async function listUsersByAdega(adegaId: string): Promise<User[]> {
 export async function createUser(input: {
   adegaId: string;
   name: string;
+  phone?: string;
   email: string;
   passwordHash: string;
   role: Role;
@@ -30,6 +31,7 @@ export async function createUser(input: {
       id: createId("user"),
       adegaId: input.adegaId,
       name: input.name,
+      phone: input.phone,
       email: input.email,
       passwordHash: input.passwordHash,
       role: input.role,

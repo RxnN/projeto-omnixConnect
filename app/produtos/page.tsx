@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { requireUser, canManageProducts } from "@/lib/auth";
-import { getAdegaById, listProducts } from "@/lib/repo";
+import { getAdegaById, listProducts, listPromotionsByFilial } from "@/lib/repo";
+import { getCurrentFilialId } from "@/lib/filial-context";
 import ImportExportProducts from "@/components/ImportExportProducts";
 import { formatBRL } from "@/lib/format";
+import { hasActivePromotionInPeriod } from "@/lib/pricing";
 
 function stockStatus(p: { currentStock: number; minStockAlert: number | null }) {
   if (p.currentStock <= 0) return { label: "Zerado", pill: "pill-danger" };
@@ -12,7 +14,12 @@ function stockStatus(p: { currentStock: number; minStockAlert: number | null }) 
 
 export default async function ProdutosPage() {
   const user = await requireUser();
-  const [products, adega] = await Promise.all([listProducts(user.adegaId), getAdegaById(user.adegaId)]);
+  const filialId = await getCurrentFilialId(user);
+  const [products, adega, promotions] = await Promise.all([
+    listProducts(filialId),
+    getAdegaById(user.adegaId),
+    listPromotionsByFilial(filialId),
+  ]);
   const canManage = canManageProducts(user.role);
   const importEnabled = Boolean(adega?.importEnabled);
 
@@ -76,7 +83,13 @@ export default async function ProdutosPage() {
                     {p.code}
                   </td>
                   <td className="px-4 py-2 font-medium">
-                    {p.name}
+                    <span className="inline-flex items-center gap-2">
+                      {p.name}
+                      {!p.active && <span className="pill pill-muted">Inativo</span>}
+                      {hasActivePromotionInPeriod(promotions, p.id) && (
+                        <span className="pill pill-ok">🏷 Promoção</span>
+                      )}
+                    </span>
                     {p.packageType && (
                       <span className="block text-xs font-normal" style={{ color: "var(--ink-soft)" }}>
                         {p.packageType === "CX" ? "Caixa" : "Pacote"}: {p.unitsPerPackage} un
@@ -96,7 +109,7 @@ export default async function ProdutosPage() {
                   <td className="px-4 py-2 text-right tabular">{formatBRL(p.salePrice)}</td>
                   <td className="px-4 py-2 text-right">
                     <Link href={`/produtos/${p.id}`} className="font-medium hover:underline" style={{ color: "var(--accent)" }}>
-                      Ver / Código de barras
+                      Ver
                     </Link>
                   </td>
                 </tr>

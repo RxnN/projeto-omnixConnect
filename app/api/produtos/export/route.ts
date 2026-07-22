@@ -3,12 +3,14 @@ import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/session";
 import { listProducts } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
+import { getCurrentFilialId } from "@/lib/filial-context";
 
 export const GET = withErrorHandling(async (_req: NextRequest) => {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const products = await listProducts(user.adegaId);
+  const filialId = await getCurrentFilialId(user);
+  const products = await listProducts(filialId);
   const rows = products.map((p) => ({
     Código: p.code,
     "Código de Barras": p.barcode ?? "",
@@ -21,6 +23,7 @@ export const GET = withErrorHandling(async (_req: NextRequest) => {
     "Estoque Mínimo": p.minStockAlert ?? "",
     "Tipo de Embalagem": p.packageType ?? "",
     "Unidades por Embalagem": p.unitsPerPackage ?? "",
+    Ativo: p.active ? "Sim" : "Não",
   }));
 
   const sheet = XLSX.utils.json_to_sheet(rows);

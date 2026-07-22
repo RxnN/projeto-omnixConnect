@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canManageProducts } from "@/lib/auth";
-import { createProduct, isBarcodeTaken } from "@/lib/repo";
+import { createProduct } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { produtoCreateSchema, firstZodError } from "@/lib/validation";
+import { getCurrentFilialId } from "@/lib/filial-context";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await getCurrentUser();
@@ -25,13 +26,12 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 400 }
     );
   }
-  if (data.barcode && (await isBarcodeTaken(data.barcode, user.adegaId))) {
-    return NextResponse.json({ error: "Já existe um produto com esse código de barras." }, { status: 400 });
-  }
-
+  const filialId = await getCurrentFilialId(user);
   const product = await createProduct({
     adegaId: user.adegaId,
+    filialId,
     ...data,
+    barcode: null,
     unitsPerPackage: data.packageType ? data.unitsPerPackage : null,
   });
 

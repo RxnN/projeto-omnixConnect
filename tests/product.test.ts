@@ -1,53 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { isBarcodeTaken } from "@/lib/repo";
+import { setProductActive } from "@/lib/repo";
 import { seedFixture, seedProduct } from "./helpers";
 
 describe("createProduct", () => {
-  it("gera códigos sequenciais por adega, começando em 0001", async () => {
-    const { adega } = await seedFixture();
+  it("gera códigos sequenciais por filial, começando em 0001", async () => {
+    const { filial } = await seedFixture();
 
-    const p1 = await seedProduct(adega.id, { name: "Primeiro" });
-    const p2 = await seedProduct(adega.id, { name: "Segundo" });
-    const p3 = await seedProduct(adega.id, { name: "Terceiro" });
+    const p1 = await seedProduct(filial, { name: "Primeiro" });
+    const p2 = await seedProduct(filial, { name: "Segundo" });
+    const p3 = await seedProduct(filial, { name: "Terceiro" });
 
     expect(p1.code).toBe("0001");
     expect(p2.code).toBe("0002");
     expect(p3.code).toBe("0003");
   });
 
-  it("cada adega tem sua própria sequência de código", async () => {
+  it("cada filial tem sua própria sequência de código", async () => {
     const fixtureA = await seedFixture();
     const fixtureB = await seedFixture();
 
-    const productA = await seedProduct(fixtureA.adega.id);
-    const productB = await seedProduct(fixtureB.adega.id);
+    const productA = await seedProduct(fixtureA.filial);
+    const productB = await seedProduct(fixtureB.filial);
 
     expect(productA.code).toBe("0001");
     expect(productB.code).toBe("0001");
   });
 });
 
-describe("isBarcodeTaken", () => {
-  it("detecta código de barras já usado por outro produto na mesma adega", async () => {
-    const { adega } = await seedFixture();
-    await seedProduct(adega.id, { barcode: "7891234567895" });
+describe("setProductActive", () => {
+  it("produto nasce ativo por padrão", async () => {
+    const { filial } = await seedFixture();
+    const product = await seedProduct(filial);
 
-    expect(await isBarcodeTaken("7891234567895", adega.id)).toBe(true);
-    expect(await isBarcodeTaken("0000000000000", adega.id)).toBe(false);
+    expect(product.active).toBe(true);
   });
 
-  it("ignora o próprio produto ao excluir por id (edição)", async () => {
-    const { adega } = await seedFixture();
-    const product = await seedProduct(adega.id, { barcode: "7891234567895" });
+  it("inativa e reativa um produto", async () => {
+    const { filial } = await seedFixture();
+    const product = await seedProduct(filial);
 
-    expect(await isBarcodeTaken("7891234567895", adega.id, product.id)).toBe(false);
+    const inactive = await setProductActive(product.id, filial.id, false);
+    expect(inactive?.active).toBe(false);
+
+    const active = await setProductActive(product.id, filial.id, true);
+    expect(active?.active).toBe(true);
   });
 
-  it("o mesmo código de barras pode existir em adegas diferentes", async () => {
-    const fixtureA = await seedFixture();
-    const fixtureB = await seedFixture();
-    await seedProduct(fixtureA.adega.id, { barcode: "7891234567895" });
+  it("não altera produto de outra filial", async () => {
+    const { filial } = await seedFixture();
+    const other = await seedFixture();
+    const product = await seedProduct(other.filial);
 
-    expect(await isBarcodeTaken("7891234567895", fixtureB.adega.id)).toBe(false);
+    expect(await setProductActive(product.id, filial.id, false)).toBeUndefined();
   });
 });

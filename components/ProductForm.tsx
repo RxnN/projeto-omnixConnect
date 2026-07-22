@@ -25,7 +25,6 @@ export default function ProductForm({ product }: { product?: Product }) {
   const [name, setName] = useState(product?.name ?? "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [unit, setUnit] = useState(product?.unit ?? "un");
-  const [barcode, setBarcode] = useState(product?.barcode ?? "");
   const [costPrice, setCostPrice] = useState(String(product?.costPrice ?? ""));
   const [salePrice, setSalePrice] = useState(String(product?.salePrice ?? ""));
   const [currentStock, setCurrentStock] = useState(String(product?.currentStock ?? "0"));
@@ -63,7 +62,6 @@ export default function ProductForm({ product }: { product?: Product }) {
       salePrice: Number(salePrice),
       currentStock: currentStock === "" ? 0 : Number(currentStock),
       minStockAlert: minStockAlert === "" ? null : Number(minStockAlert),
-      barcode: barcode.trim() === "" ? null : barcode.trim(),
       packageType: packageType === "" ? null : packageType,
       unitsPerPackage: packageType === "" || unitsPerPackage === "" ? null : Number(unitsPerPackage),
     };
@@ -102,16 +100,6 @@ export default function ProductForm({ product }: { product?: Product }) {
           <input disabled className="input" style={{ color: "var(--ink-soft)" }} value={product!.code} />
         </div>
       )}
-
-      <div>
-        <label className="label">Código de barras (opcional)</label>
-        <input
-          className="input"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-          placeholder="Ex: código EAN ou do fornecedor"
-        />
-      </div>
 
       <div>
         <label className="label">Categoria</label>

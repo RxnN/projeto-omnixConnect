@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PedidoWithItems } from "@/lib/types";
-import { formatBRL, formatDateTime } from "@/lib/format";
+import { formatBRL, formatDateTime, formatPaymentMethod } from "@/lib/format";
 
 interface CancelBlocker {
   productId: string;
@@ -87,6 +87,7 @@ export default function HistoricoPedidos({
             <th className="text-left px-4 py-2 font-semibold uppercase text-xs tracking-wide">Data</th>
             <th className="text-left px-4 py-2 font-semibold uppercase text-xs tracking-wide">Itens</th>
             <th className="text-right px-4 py-2 font-semibold uppercase text-xs tracking-wide">Total</th>
+            <th className="text-left px-4 py-2 font-semibold uppercase text-xs tracking-wide">Pagamento</th>
             <th className="text-left px-4 py-2 font-semibold uppercase text-xs tracking-wide">Usuário</th>
             {canManage && <th className="px-4 py-2"></th>}
           </tr>
@@ -123,6 +124,9 @@ export default function HistoricoPedidos({
                     {formatBRL(pedido.totalValue)}
                   </td>
                   <td className="px-4 py-2 text-xs" style={{ color: "var(--ink-soft)" }}>
+                    {formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}
+                  </td>
+                  <td className="px-4 py-2 text-xs" style={{ color: "var(--ink-soft)" }}>
                     {pedido.createdByName}
                   </td>
                   {canManage && (
@@ -147,7 +151,7 @@ export default function HistoricoPedidos({
                 {isOpen && (
                   <tr>
                     <td></td>
-                    <td colSpan={canManage ? 6 : 5} className="px-4 pb-3">
+                    <td colSpan={canManage ? 7 : 6} className="px-4 pb-3">
                       {isCancelled && (
                         <p className="text-xs mb-2" style={{ color: "var(--danger)" }}>
                           Cancelado em {formatDateTime(pedido.cancelledAt as string)} por {pedido.cancelledByName}.

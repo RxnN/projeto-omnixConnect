@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/session";
 import { canManageProducts } from "@/lib/auth";
-import { createProduct, getAdegaById, getProductByCode, isBarcodeTaken, updateProduct } from "@/lib/repo";
+import { createProduct, getAdegaById, getProductByCode, updateProduct } from "@/lib/repo";
 import type { PackageType } from "@/lib/types";
 import { withErrorHandling } from "@/lib/api-handler";
+import { getCurrentFilialId } from "@/lib/filial-context";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -48,6 +49,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: "A planilha enviada está vazia." }, { status: 400 });
   }
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  const filialId = await getCurrentFilialId(user);
 
   let created = 0;
   let updated = 0;
@@ -65,8 +67,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     const rawMinStock = row["Estoque Mínimo"];
     const minStockAlert =
       rawMinStock === "" || rawMinStock === undefined || rawMinStock === null ? null : Number(rawMinStock);
-    const rawBarcode = String(row["Código de Barras"] ?? "").trim();
-    const barcode = rawBarcode === "" ? null : rawBarcode;
     const codeInFile = String(row["Código"] ?? "").trim();
     const rawPackageType = String(row["Tipo de Embalagem"] ?? "").trim().toUpperCase();
     const packageType: PackageType | null =
@@ -94,22 +94,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       continue;
     }
 
-    const existing = codeInFile ? await getProductByCode(codeInFile, user.adegaId) : undefined;
-
-    if (barcode && (await isBarcodeTaken(barcode, user.adegaId, existing?.id))) {
-      errors.push(`Linha ${rowNum}: código de barras "${barcode}" já está em uso por outro produto.`);
-      continue;
-    }
+    const existing = codeInFile ? await getProductByCode(codeInFile, filialId) : undefined;
 
     if (existing) {
-      await updateProduct(existing.id, user.adegaId, {
+      await updateProduct(existing.id, filialId, {
         name,
         category,
         unit,
         costPrice,
         salePrice,
         minStockAlert,
-        barcode,
+        barcode: existing.barcode,
         packageType,
         unitsPerPackage: packageType ? unitsPerPackage : null,
       });
@@ -118,6 +113,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       const currentStock = Number(row["Estoque Atual"]);
       await createProduct({
         adegaId: user.adegaId,
+        filialId,
         name,
         category,
         unit,
@@ -125,7 +121,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         salePrice,
         currentStock: Number.isNaN(currentStock) ? 0 : currentStock,
         minStockAlert,
-        barcode,
+        barcode: null,
         packageType,
         unitsPerPackage: packageType ? unitsPerPackage : null,
       });

@@ -1,12 +1,14 @@
 import { requireUser, canCancelPedidos } from "@/lib/auth";
 import { listPedidos } from "@/lib/repo";
+import { getCurrentFilialId } from "@/lib/filial-context";
 import MovimentacoesToggle from "@/components/MovimentacoesToggle";
 
 export default async function MovimentacaoPage() {
   const user = await requireUser();
+  const filialId = await getCurrentFilialId(user);
   const [saidas, entradas] = await Promise.all([
-    listPedidos(user.adegaId, { type: "OUT", limit: 50 }),
-    listPedidos(user.adegaId, { type: "IN", limit: 50 }),
+    listPedidos(filialId, { type: "OUT", limit: 50 }),
+    listPedidos(filialId, { type: "IN", limit: 50 }),
   ]);
 
   return (

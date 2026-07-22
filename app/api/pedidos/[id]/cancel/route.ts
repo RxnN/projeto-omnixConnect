@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canCancelPedidos } from "@/lib/auth";
 import { cancelPedido, checkPedidoCancelStock, getPedidoById } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
+import { getCurrentFilialId } from "@/lib/filial-context";
 
 export const POST = withErrorHandling<{ params: { id: string } }>(async (req, { params }) => {
   const user = await getCurrentUser();
@@ -11,7 +12,8 @@ export const POST = withErrorHandling<{ params: { id: string } }>(async (req, { 
     return NextResponse.json({ error: "Você não tem permissão para cancelar pedidos." }, { status: 403 });
   }
 
-  const pedido = await getPedidoById(params.id, user.adegaId);
+  const filialId = await getCurrentFilialId(user);
+  const pedido = await getPedidoById(params.id, filialId);
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado." }, { status: 404 });
   if (pedido.cancelledAt) {
     return NextResponse.json({ error: "Esse pedido já está cancelado." }, { status: 400 });
@@ -36,6 +38,6 @@ export const POST = withErrorHandling<{ params: { id: string } }>(async (req, { 
     }
   }
 
-  const cancelled = await cancelPedido(params.id, user.adegaId, user.userId);
+  const cancelled = await cancelPedido(params.id, filialId, user.userId);
   return NextResponse.json({ ok: true, pedido: cancelled });
 });

@@ -8,6 +8,7 @@ import { nextCounter } from "./counter";
 function toProduct(p: {
   id: string;
   adegaId: string;
+  filialId: string;
   code: string;
   barcode: string | null;
   name: string;
@@ -19,6 +20,7 @@ function toProduct(p: {
   minStockAlert: number | null;
   packageType: string | null;
   unitsPerPackage: number | null;
+  active: boolean;
   createdAt: Date;
 }): Product {
   return {
@@ -30,59 +32,46 @@ function toProduct(p: {
   };
 }
 
-export async function listProducts(adegaId: string): Promise<Product[]> {
-  const products = await prisma.product.findMany({ where: { adegaId }, orderBy: { name: "asc" } });
+export async function listProducts(filialId: string, opts?: { activeOnly?: boolean }): Promise<Product[]> {
+  const products = await prisma.product.findMany({
+    where: { filialId, ...(opts?.activeOnly ? { active: true } : {}) },
+    orderBy: { name: "asc" },
+  });
   return products.map(toProduct);
 }
 
-export async function getProductById(id: string, adegaId: string): Promise<Product | undefined> {
-  const product = await prisma.product.findFirst({ where: { id, adegaId } });
+export async function getProductById(id: string, filialId: string): Promise<Product | undefined> {
+  const product = await prisma.product.findFirst({ where: { id, filialId } });
   return product ? toProduct(product) : undefined;
 }
 
 /** Busca um produto pelo código sequencial (aceita variações sem zeros à esquerda). */
-export async function getProductByCode(code: string, adegaId: string): Promise<Product | undefined> {
+export async function getProductByCode(code: string, filialId: string): Promise<Product | undefined> {
   const trimmed = code.trim();
-  let product = await prisma.product.findFirst({ where: { adegaId, code: trimmed } });
+  let product = await prisma.product.findFirst({ where: { filialId, code: trimmed } });
   if (!product && /^\d+$/.test(trimmed)) {
     const padded = trimmed.padStart(4, "0");
-    product = await prisma.product.findFirst({ where: { adegaId, code: padded } });
+    product = await prisma.product.findFirst({ where: { filialId, code: padded } });
   }
-  return product ? toProduct(product) : undefined;
-}
-
-export async function getProductByBarcode(barcode: string, adegaId: string): Promise<Product | undefined> {
-  const product = await prisma.product.findFirst({ where: { adegaId, barcode: barcode.trim() } });
   return product ? toProduct(product) : undefined;
 }
 
 /** Busca vários produtos por código de barras numa única query (evita abrir uma conexão
  * por item ao processar uma NF-e com muitos produtos). */
-export async function getProductsByBarcodes(barcodes: string[], adegaId: string): Promise<Product[]> {
+export async function getProductsByBarcodes(barcodes: string[], filialId: string): Promise<Product[]> {
   if (barcodes.length === 0) return [];
-  const products = await prisma.product.findMany({ where: { adegaId, barcode: { in: barcodes } } });
+  const products = await prisma.product.findMany({ where: { filialId, barcode: { in: barcodes } } });
   return products.map(toProduct);
 }
 
-export async function isBarcodeTaken(barcode: string, adegaId: string, excludeId?: string): Promise<boolean> {
-  const found = await prisma.product.findFirst({
-    where: {
-      adegaId,
-      barcode: barcode.trim(),
-      ...(excludeId ? { id: { not: excludeId } } : {}),
-    },
-    select: { id: true },
-  });
-  return Boolean(found);
-}
-
-async function nextProductCode(adegaId: string): Promise<string> {
-  const value = await nextCounter(adegaId, "product");
+async function nextProductCode(filialId: string): Promise<string> {
+  const value = await nextCounter(filialId, "product");
   return String(value).padStart(4, "0");
 }
 
 export async function createProduct(input: {
   adegaId: string;
+  filialId: string;
   name: string;
   category: string;
   unit: string;
@@ -94,11 +83,12 @@ export async function createProduct(input: {
   packageType: PackageType | null;
   unitsPerPackage: number | null;
 }): Promise<Product> {
-  const code = await nextProductCode(input.adegaId);
+  const code = await nextProductCode(input.filialId);
   const product = await prisma.product.create({
     data: {
       id: createId("prod"),
       adegaId: input.adegaId,
+      filialId: input.filialId,
       code,
       barcode: input.barcode,
       name: input.name,
@@ -117,7 +107,7 @@ export async function createProduct(input: {
 
 export async function updateProduct(
   id: string,
-  adegaId: string,
+  filialId: string,
   input: {
     name: string;
     category: string;
@@ -130,7 +120,7 @@ export async function updateProduct(
     unitsPerPackage: number | null;
   }
 ): Promise<Product | undefined> {
-  const existing = await prisma.product.findFirst({ where: { id, adegaId }, select: { id: true } });
+  const existing = await prisma.product.findFirst({ where: { id, filialId }, select: { id: true } });
   if (!existing) return undefined;
   const product = await prisma.product.update({
     where: { id },
@@ -149,9 +139,9 @@ export async function updateProduct(
   return toProduct(product);
 }
 
-export async function deleteProduct(id: string, adegaId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.movement.deleteMany({ where: { productId: id, adegaId } });
-    await tx.product.deleteMany({ where: { id, adegaId } });
-  });
+export async function setProductActive(id: string, filialId: string, active: boolean): Promise<Product | undefined> {
+  const existing = await prisma.product.findFirst({ where: { id, filialId }, select: { id: true } });
+  if (!existing) return undefined;
+  const product = await prisma.product.update({ where: { id }, data: { active } });
+  return toProduct(product);
 }

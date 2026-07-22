@@ -5,6 +5,7 @@ import type { PackageType, Product } from "./types";
 function toProduct(p: {
   id: string;
   adegaId: string;
+  filialId: string;
   code: string;
   barcode: string | null;
   name: string;
@@ -16,6 +17,7 @@ function toProduct(p: {
   minStockAlert: number | null;
   packageType: string | null;
   unitsPerPackage: number | null;
+  active: boolean;
   createdAt: Date;
 }): Product {
   return {
@@ -31,8 +33,11 @@ export interface EstoqueItem extends Product {
   valorEmEstoque: number;
 }
 
-export async function getEstoqueAtual(adegaId: string): Promise<EstoqueItem[]> {
-  const products = await prisma.product.findMany({ where: { adegaId }, orderBy: { name: "asc" } });
+export async function getEstoqueAtual(adegaId: string, filialId?: string): Promise<EstoqueItem[]> {
+  const products = await prisma.product.findMany({
+    where: { adegaId, ...(filialId ? { filialId } : {}) },
+    orderBy: { name: "asc" },
+  });
   return products.map((p) => {
     const product = toProduct(p);
     return { ...product, valorEmEstoque: product.currentStock * product.costPrice };
@@ -45,9 +50,20 @@ export interface FaturamentoResumo {
   numeroSaidas: number;
 }
 
-export async function getFaturamento(adegaId: string, from: Date, to: Date): Promise<FaturamentoResumo> {
+export async function getFaturamento(
+  adegaId: string,
+  from: Date,
+  to: Date,
+  filialId?: string
+): Promise<FaturamentoResumo> {
   const result = await prisma.movement.aggregate({
-    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    where: {
+      adegaId,
+      ...(filialId ? { filialId } : {}),
+      type: "OUT",
+      createdAt: { gte: from, lte: to },
+      pedido: { cancelledAt: null },
+    },
     _sum: { totalValue: true, quantity: true },
     _count: { _all: true },
   });
@@ -69,16 +85,23 @@ export interface FaturamentoPorProduto {
 export async function getFaturamentoPorProduto(
   adegaId: string,
   from: Date,
-  to: Date
+  to: Date,
+  filialId?: string
 ): Promise<FaturamentoPorProduto[]> {
   const products = await prisma.product.findMany({
-    where: { adegaId },
+    where: { adegaId, ...(filialId ? { filialId } : {}) },
     select: { id: true, name: true, unit: true },
     orderBy: { name: "asc" },
   });
   const grouped = await prisma.movement.groupBy({
     by: ["productId"],
-    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    where: {
+      adegaId,
+      ...(filialId ? { filialId } : {}),
+      type: "OUT",
+      createdAt: { gte: from, lte: to },
+      pedido: { cancelledAt: null },
+    },
     _sum: { quantity: true, totalValue: true },
   });
   const groupedMap = new Map(grouped.map((g) => [g.productId, g]));
@@ -121,16 +144,23 @@ export interface RentabilidadeItem {
 export async function getRentabilidade(
   adegaId: string,
   from: Date,
-  to: Date
+  to: Date,
+  filialId?: string
 ): Promise<{ resumo: RentabilidadeResumo; porProduto: RentabilidadeItem[] }> {
   const products = await prisma.product.findMany({
-    where: { adegaId },
+    where: { adegaId, ...(filialId ? { filialId } : {}) },
     select: { id: true, name: true, unit: true, costPrice: true },
     orderBy: { name: "asc" },
   });
   const grouped = await prisma.movement.groupBy({
     by: ["productId"],
-    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    where: {
+      adegaId,
+      ...(filialId ? { filialId } : {}),
+      type: "OUT",
+      createdAt: { gte: from, lte: to },
+      pedido: { cancelledAt: null },
+    },
     _sum: { quantity: true, totalValue: true },
   });
   const groupedMap = new Map(grouped.map((g) => [g.productId, g]));
@@ -183,15 +213,24 @@ export interface SugestaoCompraItem {
 
 /** Consumo médio diário baseado nas saídas dos últimos 30 dias e sugestão de reposição
  * para cobrir os próximos 30 dias de demanda média, descontando o estoque atual. */
-export async function getSugestaoCompra(adegaId: string): Promise<SugestaoCompraItem[]> {
+export async function getSugestaoCompra(adegaId: string, filialId?: string): Promise<SugestaoCompraItem[]> {
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  const products = await prisma.product.findMany({ where: { adegaId }, orderBy: { name: "asc" } });
+  const products = await prisma.product.findMany({
+    where: { adegaId, ...(filialId ? { filialId } : {}) },
+    orderBy: { name: "asc" },
+  });
 
   const consumption = await prisma.movement.groupBy({
     by: ["productId"],
-    where: { adegaId, type: "OUT", createdAt: { gte: since }, pedido: { cancelledAt: null } },
+    where: {
+      adegaId,
+      ...(filialId ? { filialId } : {}),
+      type: "OUT",
+      createdAt: { gte: since },
+      pedido: { cancelledAt: null },
+    },
     _sum: { quantity: true },
   });
   const consumptionMap = new Map(consumption.map((c) => [c.productId, c._sum.quantity ?? 0]));
@@ -223,10 +262,21 @@ export interface RecorrenciaItem {
 }
 
 /** Ranking de produtos por número de movimentações de saída (frequência), não apenas volume. */
-export async function getRankingRecorrencia(adegaId: string, from: Date, to: Date): Promise<RecorrenciaItem[]> {
+export async function getRankingRecorrencia(
+  adegaId: string,
+  from: Date,
+  to: Date,
+  filialId?: string
+): Promise<RecorrenciaItem[]> {
   const grouped = await prisma.movement.groupBy({
     by: ["productId"],
-    where: { adegaId, type: "OUT", createdAt: { gte: from, lte: to }, pedido: { cancelledAt: null } },
+    where: {
+      adegaId,
+      ...(filialId ? { filialId } : {}),
+      type: "OUT",
+      createdAt: { gte: from, lte: to },
+      pedido: { cancelledAt: null },
+    },
     _count: { _all: true },
     _sum: { quantity: true },
   });
