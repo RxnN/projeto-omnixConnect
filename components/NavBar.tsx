@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { SessionData } from "@/lib/session";
@@ -107,7 +108,9 @@ export default function NavBar({
           </svg>
         </button>
         <div className="flex items-center gap-2 min-w-0 mx-3">
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-ink text-xs font-bold shrink-0">OC</span>
+          <span className="brand-mark brand-mark-mobile">
+            <Image src="/brand/omnix-connect-mark.png" alt="" width={32} height={20} priority />
+          </span>
           <span className="font-display font-extrabold text-sm tracking-tight truncate">Omnix Connect</span>
         </div>
         <ThemeToggle />
@@ -131,7 +134,9 @@ export default function NavBar({
         <div className="px-4 py-5 border-b space-y-4" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
-              <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent text-accent-ink text-sm font-bold shadow-sm shrink-0">OC</span>
+              <span className="brand-mark">
+                <Image src="/brand/omnix-connect-mark.png" alt="" width={38} height={24} priority />
+              </span>
               <span className="min-w-0">
                 <strong className="font-display font-extrabold text-base leading-none tracking-tight block">Omnix Connect</strong>
                 <small className="text-[11px] block mt-1 truncate" style={{ color: "var(--ink-soft)" }}>Gestão comercial</small>

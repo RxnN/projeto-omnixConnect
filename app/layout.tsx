@@ -21,6 +21,10 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Omnix Connect — Gestão conectada para o seu negócio",
   description: "Omnix Connect: gestão conectada para o seu negócio.",
+  icons: {
+    icon: "/brand/omnix-connect-mark.png",
+    apple: "/brand/omnix-connect-mark.png",
+  },
 };
 
 const THEME_INIT_SCRIPT = `

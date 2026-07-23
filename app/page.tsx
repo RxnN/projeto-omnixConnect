@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/session";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
 import Link from "next/link";
+import Image from "next/image";
 
 export default async function LoginPage() {
   const user = await getCurrentUser();
@@ -13,7 +14,20 @@ export default async function LoginPage() {
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <h1 className="font-display text-3xl font-extrabold">Omnix Connect</h1>
+          <div className="auth-brand-lockup">
+            <Image
+              src="/brand/omnix-connect-mark.png"
+              alt=""
+              width={44}
+              height={28}
+              className="auth-brand-logo"
+              priority
+            />
+            <span className="auth-brand-copy">
+              <strong>OMNIX</strong>
+              <small>CONNECT</small>
+            </span>
+          </div>
           <p className="mt-1" style={{ color: "var(--ink-soft)" }}>
             Gestão conectada para o seu negócio
           </p>

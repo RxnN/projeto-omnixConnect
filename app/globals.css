@@ -211,19 +211,91 @@ body {
   flex: 1;
 }
 
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid rgba(54, 194, 255, .22);
+  border-radius: .75rem;
+  background: radial-gradient(circle at 50% 25%, #102c55 0%, #071a33 70%);
+  box-shadow: 0 4px 14px rgba(7, 26, 51, .2);
+}
+
+.brand-mark img {
+  width: 2.1rem;
+  height: auto;
+}
+
+.brand-mark-mobile {
+  width: 2rem;
+  height: 2rem;
+  border-radius: .55rem;
+}
+
+.brand-mark-mobile img {
+  width: 1.7rem;
+}
+
+.auth-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .55rem;
+  width: fit-content;
+  margin: 0 auto .75rem;
+  padding: .42rem .75rem;
+  overflow: hidden;
+  border: 1px solid rgba(54, 194, 255, .22);
+  border-radius: .75rem;
+  background: radial-gradient(circle at 50% 10%, #15365f 0%, #071a33 68%);
+  box-shadow: 0 5px 14px rgba(7, 26, 51, .12);
+}
+
+.auth-brand-logo {
+  display: block;
+  width: 2.35rem;
+  height: auto;
+}
+
+.auth-brand-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+
+.auth-brand-copy strong {
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .055em;
+}
+
+.auth-brand-copy small {
+  margin-top: .2rem;
+  color: #36c2ff;
+  font-size: .48rem;
+  font-weight: 700;
+  letter-spacing: .22em;
+}
+
 .branded-watermark::before {
-  content: "OC";
+  content: "";
   position: fixed;
   right: 2.5rem;
-  bottom: 1.25rem;
+  bottom: 1.8rem;
   z-index: 0;
-  color: var(--ink);
-  font-family: var(--font-display), sans-serif;
-  font-size: clamp(4.5rem, 9vw, 8rem);
-  font-weight: 800;
-  letter-spacing: -.09em;
-  line-height: .75;
-  opacity: .025;
+  width: clamp(7rem, 12vw, 11rem);
+  height: clamp(4.5rem, 8vw, 7rem);
+  background-image: url("/brand/omnix-connect-mark.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: .035;
   pointer-events: none;
   user-select: none;
 }
@@ -407,8 +479,9 @@ body {
   .branded-watermark::before {
     right: 1rem;
     bottom: 4.75rem;
-    font-size: 4.25rem;
-    opacity: .02;
+    width: 6rem;
+    height: 3.75rem;
+    opacity: .03;
   }
   .branded-watermark::after {
     right: 1rem;
