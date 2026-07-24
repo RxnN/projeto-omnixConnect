@@ -4,10 +4,11 @@ import { getProductById } from "@/lib/repo";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import ProductForm from "@/components/ProductForm";
 
-export default async function EditarProdutoPage({ params }: { params: { id: string } }) {
+export default async function EditarProdutoPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requirePermission("MANAGE_PRODUCTS");
   const filialId = await getCurrentFilialId(user);
-  const product = await getProductById(params.id, filialId);
+  const product = await getProductById(id, filialId);
   if (!product) notFound();
 
   return (

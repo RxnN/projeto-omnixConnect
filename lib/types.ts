@@ -80,6 +80,10 @@ export interface Product {
   createdAt: string;
 }
 
+/** DTO seguro para componentes de pedido. O custo só existe quando a permissão
+ * VIEW_COSTS_MARGIN foi confirmada no servidor. */
+export type OrderProduct = Omit<Product, "costPrice"> & { costPrice?: number };
+
 export interface Movement {
   id: string;
   empresaId: string;

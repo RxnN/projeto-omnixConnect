@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
 import { createPromotion, getProductById, listPromotionsByFilial } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { promotionCreateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
 
 export const GET = withErrorHandling(async () => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
 
   const filialId = await getCurrentFilialId(user);
   const promotions = await listPromotionsByFilial(filialId);
@@ -16,8 +14,7 @@ export const GET = withErrorHandling(async () => {
 });
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "MANAGE_PROMOTIONS"))) {
     return NextResponse.json({ error: "Você não tem permissão para criar promoções." }, { status: 403 });
   }

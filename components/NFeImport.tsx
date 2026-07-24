@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { Product } from "@/lib/types";
+import type { OrderProduct } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import ProductAutocomplete from "./ProductAutocomplete";
 
@@ -17,7 +17,7 @@ interface ParsedItem {
 }
 
 interface ReviewItem extends ParsedItem {
-  selectedProduct: Product | null;
+  selectedProduct: OrderProduct | null;
   include: boolean;
 }
 
@@ -30,8 +30,8 @@ export default function NFeImport({
   products,
   onImport,
 }: {
-  products: Product[];
-  onImport: (items: { product: Product; quantity: number; unitValue: number }[]) => void;
+  products: OrderProduct[];
+  onImport: (items: { product: OrderProduct; quantity: number; unitValue: number }[]) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -82,7 +82,7 @@ export default function NFeImport({
   function handleAddAll() {
     const toAdd = items
       .filter((it) => it.include && it.selectedProduct)
-      .map((it) => ({ product: it.selectedProduct as Product, quantity: it.quantity, unitValue: it.unitValue }));
+      .map((it) => ({ product: it.selectedProduct as OrderProduct, quantity: it.quantity, unitValue: it.unitValue }));
     if (toAdd.length === 0) {
       setError("Nenhum item pronto para adicionar. Vincule os produtos não encontrados a um produto do sistema.");
       return;

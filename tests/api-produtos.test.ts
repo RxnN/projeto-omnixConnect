@@ -61,6 +61,24 @@ describe("POST /api/produtos", () => {
     expect(res.status).toBe(403);
   });
 
+  it("não confia em papel OWNER adulterado no cookie", async () => {
+    const { empresa, filial } = await seedFixture();
+    const employee = await createUser({
+      empresaId: empresa.id,
+      name: "Funcionário",
+      email: `cookie-role-${Date.now()}@teste.com`,
+      passwordHash: "x",
+      role: "EMPLOYEE",
+    });
+    await loginAs(empresa.id, filial.id, empresa.name, employee.id, employee.name, employee.email, "OWNER");
+
+    const res = await POST(
+      makeRequest({ name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2 })
+    );
+
+    expect(res.status).toBe(403);
+  });
+
   it("gerente não pode cadastrar produto (só o dono)", async () => {
     const { empresa, filial } = await seedFixture();
     const manager = await createUser({

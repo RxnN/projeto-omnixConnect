@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/session";
-import { createFilial, getEmpresaById, listFiliais } from "@/lib/repo";
+import { createFilialWithinLimit, listFiliais } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
 
 const filialSchema = z.object({ name: z.string().trim().min(1, "Informe o nome da filial.") });
 
 export const GET = withErrorHandling(async () => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
 
   const filiais = await listFiliais(user.empresaId);
   return NextResponse.json({ filiais });
 });
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "MANAGE_BRANCHES"))) {
     return NextResponse.json({ error: "Você não tem permissão para criar filiais." }, { status: 403 });
   }
@@ -28,17 +25,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." }, { status: 400 });
   }
 
-  const [empresa, existentes] = await Promise.all([getEmpresaById(user.empresaId), listFiliais(user.empresaId)]);
-  const limite = empresa?.maxFiliais ?? 1;
-  if (existentes.length >= limite) {
+  const { filial, limit } = await createFilialWithinLimit(user.empresaId, parsed.data.name);
+  if (!filial) {
     return NextResponse.json(
       {
-        error: `Sua conta está licenciada para ${limite} filial(is). Fale com a gente para liberar mais.`,
+        error: `Sua conta está licenciada para ${limit} filial(is). Fale com a gente para liberar mais.`,
       },
       { status: 403 }
     );
   }
 
-  const filial = await createFilial(user.empresaId, parsed.data.name);
   return NextResponse.json({ ok: true, filial });
 });

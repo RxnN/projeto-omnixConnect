@@ -3,6 +3,7 @@ import { getCurrentUser, SessionData } from "./session";
 import { getEmpresaById, getUserById } from "./repo";
 import { resolvePermissions } from "./permissions";
 import type { EffectivePermissions, Empresa, PermissionKey, Role } from "./types";
+import { ApiError } from "./api-handler";
 
 const EXPIRING_SOON_DAYS = 5;
 
@@ -16,6 +17,44 @@ export interface SubscriptionStatus {
   expired: boolean;
   daysRemaining: number | null;
   expiringSoon: boolean;
+}
+
+type AccessState =
+  | { status: "UNAUTHENTICATED" }
+  | { status: "SUBSCRIPTION_BLOCKED"; user: SessionData }
+  | { status: "OK"; user: SessionData };
+
+/** A sessão prova a identidade, mas papel, filial e vínculo atuais são reconstruídos
+ * do banco em cada acesso protegido para que alterações e revogações sejam imediatas. */
+async function getAccessState(): Promise<AccessState> {
+  const sessionUser = await getCurrentUser();
+  if (!sessionUser) return { status: "UNAUTHENTICATED" };
+
+  const [current, empresa] = await Promise.all([
+    getUserById(sessionUser.userId),
+    getEmpresaById(sessionUser.empresaId),
+  ]);
+  if (!current || !empresa || current.empresaId !== sessionUser.empresaId) {
+    return { status: "UNAUTHENTICATED" };
+  }
+
+  const user: SessionData = {
+    userId: current.id,
+    empresaId: current.empresaId,
+    empresaName: empresa.name,
+    // OWNER normalmente usa null e seleciona a filial por cookie. Se uma sessão antiga
+    // trouxer filialId, getCurrentFilialId ainda valida o vínculo com a empresa.
+    filialId: current.role === "OWNER" ? sessionUser.filialId : current.filialId,
+    name: current.name,
+    email: current.email,
+    role: current.role,
+    lastActivityAt: sessionUser.lastActivityAt,
+  };
+
+  if (!empresa.approved || isSubscriptionExpired(empresa)) {
+    return { status: "SUBSCRIPTION_BLOCKED", user };
+  }
+  return { status: "OK", user };
 }
 
 /** Dias restantes até o vencimento (null = sem data de vencimento controlada) e se está
@@ -37,15 +76,26 @@ export function getSubscriptionStatus(empresa: Pick<Empresa, "paidUntil">): Subs
  * (pagamento confirmado) e não está com a assinatura vencida; caso contrário
  * redireciona para login ou tela de espera. */
 export async function requireUser(): Promise<SessionData> {
-  const user = await getCurrentUser();
-  if (!user) {
+  const access = await getAccessState();
+  if (access.status === "UNAUTHENTICATED") {
     redirect("/");
   }
-  const empresa = await getEmpresaById((user as SessionData).empresaId);
-  if (!empresa?.approved || isSubscriptionExpired(empresa)) {
+  if (access.status === "SUBSCRIPTION_BLOCKED") {
     redirect("/aguardando-aprovacao");
   }
-  return user as SessionData;
+  return access.user;
+}
+
+/** Mesmos controles de requireUser(), mas com respostas JSON para Route Handlers. */
+export async function requireApiUser(): Promise<SessionData> {
+  const access = await getAccessState();
+  if (access.status === "UNAUTHENTICATED") {
+    throw new ApiError(401, "Não autenticado.");
+  }
+  if (access.status === "SUBSCRIPTION_BLOCKED") {
+    throw new ApiError(403, "A assinatura da empresa está aguardando aprovação ou vencida.");
+  }
+  return access.user;
 }
 
 /** Garante que o usuário logado possui um dos papéis (roles) permitidos. */
@@ -62,9 +112,22 @@ export async function requireRole(allowed: Role[]): Promise<SessionData> {
 export async function getEffectivePermissions(
   user: Pick<SessionData, "userId" | "role">
 ): Promise<EffectivePermissions> {
-  if (user.role === "OWNER") return resolvePermissions("OWNER");
   const current = await getUserById(user.userId);
-  return resolvePermissions(user.role, current?.permissions);
+  if (!current) {
+    return {
+      REGISTER_ENTRIES: false,
+      MANAGE_PRODUCTS: false,
+      IMPORT_PRODUCTS: false,
+      EDIT_ORDER_PRICE: false,
+      FORCE_STOCK: false,
+      CANCEL_ORDERS: false,
+      VIEW_REPORTS: false,
+      VIEW_COSTS_MARGIN: false,
+      MANAGE_PROMOTIONS: false,
+      MANAGE_BRANCHES: false,
+    };
+  }
+  return resolvePermissions(current.role, current.permissions);
 }
 
 export async function hasPermission(

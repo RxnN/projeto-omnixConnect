@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { getCurrentUser } from "@/lib/session";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
 import { getEmpresaById, listProducts } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 
 export const GET = withErrorHandling(async (_req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "IMPORT_PRODUCTS"))) {
     return NextResponse.json({ error: "Você não tem permissão para exportar produtos." }, { status: 403 });
   }

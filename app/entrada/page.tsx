@@ -10,10 +10,13 @@ export default async function EntradaPage() {
   const permissions = await getEffectivePermissions(user);
   const filialId = await getCurrentFilialId(user);
   const [products, pedidos] = await Promise.all([listProducts(filialId, { activeOnly: true }), listPedidos(filialId, { type: "IN", limit: 20 })]);
+  const orderProducts = permissions.VIEW_COSTS_MARGIN
+    ? products
+    : products.map(({ costPrice: _costPrice, ...product }) => product);
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Abastecimento" title="Entrada" description="Registre a chegada de mercadorias com múltiplos produtos de uma vez." />
-      <PedidoForm products={products} type="IN" canEditPrice={true} canForceStock={false} />
+      <PedidoForm products={orderProducts} type="IN" canEditPrice={true} canForceStock={false} />
       <section className="space-y-4 pt-6 border-t" style={{ borderColor: "var(--border)" }}>
         <div className="section-heading"><h2>Últimas entradas</h2></div>
         <HistoricoPedidos pedidos={pedidos} canManage={permissions.CANCEL_ORDERS} />

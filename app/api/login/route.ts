@@ -14,7 +14,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Limite por IP: barra flood genérico no endpoint. Mas o header X-Forwarded-For vem
   // do próprio cliente e pode ser forjado sem um proxy confiável na frente — por isso
   // o limite por e-mail abaixo é o que realmente impede força bruta numa conta específica.
-  const ipLimit = rateLimit(`login-ip:${clientIp(req)}`, 20, 5 * 60_000);
+  const ipLimit = await rateLimit(`login-ip:${clientIp(req)}`, 20, 5 * 60_000);
   if (!ipLimit.allowed) {
     return NextResponse.json(
       { error: "Muitas tentativas de login. Tente novamente em alguns minutos." },
@@ -29,7 +29,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
   const { email, password } = parsed.data;
 
-  const emailLimit = rateLimit(`login-email:${email}`, 8, 15 * 60_000);
+  const emailLimit = await rateLimit(`login-email:${email}`, 8, 15 * 60_000);
   if (!emailLimit.allowed) {
     return NextResponse.json(
       { error: "Muitas tentativas para este e-mail. Tente novamente em alguns minutos." },

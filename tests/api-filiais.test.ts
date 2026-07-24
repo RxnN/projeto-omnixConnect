@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createUser } from "@/lib/repo";
 import { seedFixture } from "./helpers";
 
 vi.mock("@/lib/session", () => ({
@@ -72,10 +73,38 @@ describe("POST /api/filiais", () => {
     expect(second.status).toBe(403);
   });
 
-  it("funcionário não pode criar filial mesmo dentro da licença", async () => {
+  it("serializa criações concorrentes no limite contratado", async () => {
     const { empresa, filial, user } = await seedFixture();
+    await prisma.empresa.update({ where: { id: empresa.id }, data: { maxFiliais: 2 } });
+    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
+
+    const responses = await Promise.all([
+      POST(makeRequest({ name: "Concorrente A" })),
+      POST(makeRequest({ name: "Concorrente B" })),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 403]);
+  });
+
+  it("funcionário não pode criar filial mesmo dentro da licença", async () => {
+    const { empresa, filial } = await seedFixture();
     await prisma.empresa.update({ where: { id: empresa.id }, data: { maxFiliais: 5 } });
-    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "EMPLOYEE");
+    const employee = await createUser({
+      empresaId: empresa.id,
+      name: "Funcionário",
+      email: `filial-employee-${Date.now()}@teste.com`,
+      passwordHash: "x",
+      role: "EMPLOYEE",
+    });
+    await loginAs(
+      empresa.id,
+      filial.id,
+      empresa.name,
+      employee.id,
+      employee.name,
+      employee.email,
+      "EMPLOYEE"
+    );
 
     const res = await POST(makeRequest({ name: "Filial Nova" }));
 

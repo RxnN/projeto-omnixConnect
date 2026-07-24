@@ -44,7 +44,7 @@ describe("PUT /api/produtos/[id]", () => {
 
     const res = await PUT(
       makeRequest("PUT", { name: "Hack", category: "C", unit: "un", costPrice: 1, salePrice: 2 }),
-      { params: { id: foreignProduct.id } }
+      { params: Promise.resolve({ id: foreignProduct.id }) }
     );
 
     expect(res.status).toBe(404);
@@ -64,7 +64,7 @@ describe("PUT /api/produtos/[id]", () => {
 
     const res = await PUT(
       makeRequest("PUT", { name: "X", category: "C", unit: "un", costPrice: 1, salePrice: 2 }),
-      { params: { id: product.id } }
+      { params: Promise.resolve({ id: product.id }) }
     );
 
     expect(res.status).toBe(403);
@@ -77,7 +77,7 @@ describe("PUT /api/produtos/[id]", () => {
 
     const res = await PUT(
       makeRequest("PUT", { name: "Atualizado", category: "C", unit: "un", costPrice: 1, salePrice: 25 }),
-      { params: { id: product.id } }
+      { params: Promise.resolve({ id: product.id }) }
     );
     const json = await res.json();
 
@@ -97,7 +97,7 @@ describe("POST /api/produtos/[id]/status", () => {
     const product = await seedProduct(filial);
     await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
 
-    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: Promise.resolve({ id: product.id }) });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -109,8 +109,8 @@ describe("POST /api/produtos/[id]/status", () => {
     const product = await seedProduct(filial);
     await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
 
-    await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
-    const res = await statusPost(makeRequest("POST", { active: true }), { params: { id: product.id } });
+    await statusPost(makeRequest("POST", { active: false }), { params: Promise.resolve({ id: product.id }) });
+    const res = await statusPost(makeRequest("POST", { active: true }), { params: Promise.resolve({ id: product.id }) });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -123,7 +123,7 @@ describe("POST /api/produtos/[id]/status", () => {
     const foreignProduct = await seedProduct(other.filial);
     await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
 
-    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: foreignProduct.id } });
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: Promise.resolve({ id: foreignProduct.id }) });
 
     expect(res.status).toBe(404);
   });
@@ -140,7 +140,7 @@ describe("POST /api/produtos/[id]/status", () => {
     });
     await loginAs(empresa.id, filial.id, empresa.name, employee.id, employee.name, employee.email, "EMPLOYEE");
 
-    const res = await statusPost(makeRequest("POST", { active: false }), { params: { id: product.id } });
+    const res = await statusPost(makeRequest("POST", { active: false }), { params: Promise.resolve({ id: product.id }) });
 
     expect(res.status).toBe(403);
   });

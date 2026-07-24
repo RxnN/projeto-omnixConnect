@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { MovementType, PackageType, PaymentMethod, Product, Promotion } from "@/lib/types";
+import type { MovementType, OrderProduct, PackageType, PaymentMethod, Promotion } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import { getEffectivePrice } from "@/lib/pricing";
 import ProductAutocomplete from "./ProductAutocomplete";
@@ -68,7 +68,7 @@ export default function PedidoForm({
   canForceStock,
   promotions = [],
 }: {
-  products: Product[];
+  products: OrderProduct[];
   type: MovementType;
   canEditPrice: boolean;
   canForceStock: boolean;
@@ -134,9 +134,9 @@ export default function PedidoForm({
     setSuccess(null);
   }
 
-  function addToCart(product: Product) {
+  function addToCart(product: OrderProduct) {
     resetMessages();
-    const basePrice = isEntrada ? product.costPrice : product.salePrice;
+    const basePrice = isEntrada ? product.costPrice ?? 0 : product.salePrice;
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
       if (existing) {
@@ -172,7 +172,7 @@ export default function PedidoForm({
 
   /** Usado pela importação de NF-e: adiciona com a quantidade e o valor exatos da nota,
    * em vez de incrementar 1 unidade por vez como na busca. */
-  function addToCartWithQuantity(product: Product, quantity: number, unitValue: number) {
+  function addToCartWithQuantity(product: OrderProduct, quantity: number, unitValue: number) {
     resetMessages();
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
@@ -201,7 +201,7 @@ export default function PedidoForm({
     });
   }
 
-  function handleNFeImport(items: { product: Product; quantity: number; unitValue: number }[]) {
+  function handleNFeImport(items: { product: OrderProduct; quantity: number; unitValue: number }[]) {
     items.forEach((it) => addToCartWithQuantity(it.product, it.quantity, it.unitValue));
     setSuccess(`${items.length} produto(s) da NF-e adicionados ao pedido de entrada.`);
   }

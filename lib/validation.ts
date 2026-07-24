@@ -31,11 +31,34 @@ export const produtoCreateSchema = z.object({
 
 export const produtoUpdateSchema = z.object(produtoBase);
 
+function hasValidCheckDigits(value: string): boolean {
+  if (/^(\d)\1+$/.test(value)) return false;
+  const calculate = (base: string, weights: number[]) => {
+    const sum = base.split("").reduce((total, digit, index) => total + Number(digit) * weights[index], 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+  if (value.length === 11) {
+    const first = calculate(value.slice(0, 9), [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const second = calculate(value.slice(0, 9) + first, [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return value.endsWith(`${first}${second}`);
+  }
+  if (value.length === 14) {
+    const first = calculate(value.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const second = calculate(value.slice(0, 12) + first, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return value.endsWith(`${first}${second}`);
+  }
+  return false;
+}
+
 const cnpjCpfSchema = z
   .string()
   .trim()
   .transform((v) => v.replace(/\D/g, ""))
-  .refine((v) => v.length === 11 || v.length === 14, "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.");
+  .refine(
+    (v) => (v.length === 11 || v.length === 14) && hasValidCheckDigits(v),
+    "Informe um CPF ou CNPJ válido."
+  );
 
 const phoneSchema = z
   .string()
@@ -49,7 +72,11 @@ export const cadastroSchema = z.object({
   userName: z.string().trim().min(1, "Informe seu nome."),
   phone: phoneSchema,
   email: z.string().trim().min(1, "Informe seu e-mail.").email("E-mail inválido.").toLowerCase(),
-  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
+  password: z
+    .string()
+    .min(10, "A senha deve ter pelo menos 10 caracteres.")
+    .regex(/[A-Za-zÀ-ÿ]/, "A senha deve conter ao menos uma letra.")
+    .regex(/\d/, "A senha deve conter ao menos um número."),
 });
 
 const optionalDate = z.preprocess(
@@ -105,6 +132,17 @@ export const pedidoCreateSchema = z
     boletoDueDays: z.coerce.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
+    const seenProducts = new Set<string>();
+    data.items.forEach((item, index) => {
+      if (seenProducts.has(item.productId)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "O mesmo produto não pode aparecer mais de uma vez no pedido.",
+          path: ["items", index, "productId"],
+        });
+      }
+      seenProducts.add(item.productId);
+    });
     if (!PAYMENT_METHODS_BY_TYPE[data.type].includes(data.paymentMethod)) {
       ctx.addIssue({
         code: "custom",

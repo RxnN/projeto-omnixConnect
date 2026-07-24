@@ -8,7 +8,7 @@ prisma/dev.db-wal
 .env.local
 .env*.local
 npm-debug.log*
+.npm-cache/
 *.tsbuildinfo
 .claude/
 .vscode/
-

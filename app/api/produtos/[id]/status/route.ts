@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/session";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
 import { getProductById, setProductActive } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 
 const statusSchema = z.object({ active: z.boolean() });
 
-export const POST = withErrorHandling<{ params: { id: string } }>(async (req: NextRequest, { params }) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async (req: NextRequest, { params }) => {
+  const { id } = await params;
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "MANAGE_PRODUCTS"))) {
     return NextResponse.json({ error: "Você não tem permissão para alterar o status de produtos." }, { status: 403 });
   }
 
   const filialId = await getCurrentFilialId(user);
-  const existing = await getProductById(params.id, filialId);
+  const existing = await getProductById(id, filialId);
   if (!existing) return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
 
   const body = await req.json().catch(() => null);
@@ -25,6 +24,6 @@ export const POST = withErrorHandling<{ params: { id: string } }>(async (req: Ne
     return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }
 
-  const product = await setProductActive(params.id, filialId, parsed.data.active);
+  const product = await setProductActive(id, filialId, parsed.data.active);
   return NextResponse.json({ ok: true, product });
 });

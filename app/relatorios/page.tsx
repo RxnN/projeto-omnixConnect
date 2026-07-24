@@ -17,8 +17,9 @@ import PageHeader from "@/components/PageHeader";
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: { periodo?: string; from?: string; to?: string; filial?: string };
+  searchParams: Promise<{ periodo?: string; from?: string; to?: string; filial?: string }>;
 }) {
+  const filters = await searchParams;
   const user = await requirePermission("VIEW_REPORTS");
   const permissions = await getEffectivePermissions(user);
   const canChooseBranch = user.role === "OWNER";
@@ -30,15 +31,15 @@ export default async function RelatoriosPage({
   const filiais = canChooseBranch ? await listFiliais(user.empresaId) : [];
   let filialId: string | undefined;
   if (canChooseBranch) {
-    const requested = filiais.find((f) => f.id === searchParams.filial);
+    const requested = filiais.find((f) => f.id === filters.filial);
     filialId = requested?.id;
   } else {
     filialId = await getCurrentFilialId(user);
   }
 
   // Gerente só pode ver o mês corrente; dono pode escolher qualquer período.
-  const periodo: Periodo = canViewAdvanced ? ((searchParams.periodo as Periodo) || "mes") : "mes";
-  const { from, to } = resolvePeriodo(periodo, searchParams.from, searchParams.to);
+  const periodo: Periodo = canViewAdvanced ? ((filters.periodo as Periodo) || "mes") : "mes";
+  const { from, to } = resolvePeriodo(periodo, filters.from, filters.to);
 
   const [estoqueRaw, faturamento, faturamentoPorProduto, rentabilidade, sugestaoCompra, ranking] = await Promise.all([
     getEstoqueAtual(user.empresaId, filialId),
@@ -80,8 +81,8 @@ export default async function RelatoriosPage({
         from={from}
         to={to}
         periodo={periodo}
-        searchFrom={searchParams.from}
-        searchTo={searchParams.to}
+        searchFrom={filters.from}
+        searchTo={filters.to}
       />
     </div>
   );

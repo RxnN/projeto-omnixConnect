@@ -7,11 +7,12 @@ import ProductActiveToggle from "@/components/ProductActiveToggle";
 import { formatBRL, formatDateShort } from "@/lib/format";
 import { hasActivePromotionInPeriod } from "@/lib/pricing";
 
-export default async function ProdutoDetalhePage({ params }: { params: { id: string } }) {
+export default async function ProdutoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireUser();
   const permissions = await getEffectivePermissions(user);
   const filialId = await getCurrentFilialId(user);
-  const product = await getProductById(params.id, filialId);
+  const product = await getProductById(id, filialId);
   if (!product) notFound();
 
   const promotions = await listPromotionsByProductIds(filialId, [product.id]);

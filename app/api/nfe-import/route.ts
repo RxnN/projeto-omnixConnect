@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
-import { getCurrentUser } from "@/lib/session";
 import { getProductsByBarcodes } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // Sanidade contra XML forjado com um número absurdo de itens (cada item viraria uma
@@ -24,10 +24,16 @@ interface NFeDet {
 }
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "REGISTER_ENTRIES"))) {
     return NextResponse.json({ error: "Você não tem permissão para registrar entradas." }, { status: 403 });
+  }
+  const uploadLimit = await rateLimit(`nfe-import:${user.empresaId}:${user.userId}`, 10, 60_000);
+  if (!uploadLimit.allowed) {
+    return NextResponse.json(
+      { error: "Muitas importações em sequência. Aguarde um momento." },
+      { status: 429, headers: { "Retry-After": String(uploadLimit.retryAfterSeconds) } }
+    );
   }
 
   const formData = await req.formData().catch(() => null);
@@ -40,7 +46,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const xmlText = await file.text();
-  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+  if (/<!DOCTYPE|<!ENTITY/i.test(xmlText)) {
+    return NextResponse.json({ error: "O XML contém declarações não permitidas." }, { status: 400 });
+  }
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    processEntities: false,
+  });
 
   let parsed: Record<string, unknown>;
   try {

@@ -14,11 +14,12 @@ export default async function PedidosPage() {
     listPedidos(filialId, { type: "OUT", limit: 20 }),
     listPromotionsByFilial(filialId),
   ]);
+  const orderProducts = products.map(({ costPrice: _costPrice, ...product }) => product);
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Operação de venda" title="Pedidos" description="Busque os produtos, adicione ao pedido e feche a venda." />
       <PedidoForm
-        products={products}
+        products={orderProducts}
         type="OUT"
         canEditPrice={permissions.EDIT_ORDER_PRICE}
         canForceStock={permissions.FORCE_STOCK}

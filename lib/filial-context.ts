@@ -15,9 +15,15 @@ const FILIAL_COOKIE = "selectedFilialId";
  * tenta criar filial nenhuma — isso violaria a FK e mascararia o problema real, que é
  * a sessão estar inválida. Lança um erro claro em vez disso. */
 export async function getCurrentFilialId(user: SessionData): Promise<string> {
-  if (user.filialId) return user.filialId;
+  if (user.filialId) {
+    const assigned = await getFilialById(user.filialId, user.empresaId);
+    if (assigned) return assigned.id;
+    if (user.role !== "OWNER") {
+      throw new Error("A filial vinculada a este usuário não pertence mais à empresa.");
+    }
+  }
 
-  const selected = cookies().get(FILIAL_COOKIE)?.value;
+  const selected = (await cookies()).get(FILIAL_COOKIE)?.value;
   if (selected) {
     const filial = await getFilialById(selected, user.empresaId);
     if (filial) return filial.id;

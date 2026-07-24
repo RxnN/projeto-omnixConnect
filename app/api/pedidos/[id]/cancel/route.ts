@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
-import { hasPermission } from "@/lib/auth";
-import { cancelPedido, checkPedidoCancelStock, getPedidoById } from "@/lib/repo";
+import { hasPermission, requireApiUser } from "@/lib/auth";
+import { cancelPedido, checkPedidoCancelStock, getPedidoById, StockConflictError } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 
-export const POST = withErrorHandling<{ params: { id: string } }>(async (req, { params }) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async (req, { params }) => {
+  const { id } = await params;
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "CANCEL_ORDERS"))) {
     return NextResponse.json({ error: "Você não tem permissão para cancelar pedidos." }, { status: 403 });
   }
 
   const filialId = await getCurrentFilialId(user);
-  const pedido = await getPedidoById(params.id, filialId);
+  const pedido = await getPedidoById(id, filialId);
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado." }, { status: 404 });
   if (pedido.cancelledAt) {
     return NextResponse.json({ error: "Esse pedido já está cancelado." }, { status: 400 });
@@ -38,6 +37,14 @@ export const POST = withErrorHandling<{ params: { id: string } }>(async (req, { 
     }
   }
 
-  const cancelled = await cancelPedido(params.id, filialId, user.userId);
+  let cancelled;
+  try {
+    cancelled = await cancelPedido(id, filialId, user.userId, force);
+  } catch (error) {
+    if (error instanceof StockConflictError) {
+      return NextResponse.json({ warning: error.message }, { status: 409 });
+    }
+    throw error;
+  }
   return NextResponse.json({ ok: true, pedido: cancelled });
 });

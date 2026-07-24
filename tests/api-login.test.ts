@@ -64,6 +64,16 @@ describe("POST /api/login", () => {
     expect(json.error).toBeTruthy();
   });
 
+  it("rejeita requisição mutável originada de outro site", async () => {
+    const req = makeRequest({ email: "teste@teste.com", password: "qualquer" }, "10.0.0.5");
+    req.headers.set("origin", "https://site-malicioso.example");
+    req.headers.set("sec-fetch-site", "cross-site");
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(403);
+  });
+
   it("bloqueia por rate limit de e-mail após muitas tentativas na mesma conta", async () => {
     const email = `bruteforce-${Date.now()}@teste.com`;
     // limite é 8 tentativas / 15min por e-mail; varia o IP pra não bater no limite de IP (20) antes.

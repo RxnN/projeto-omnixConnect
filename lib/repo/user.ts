@@ -31,16 +31,28 @@ function mapUser(user: Prisma.UserGetPayload<object>): User {
 
 export async function createUser(input: {
   empresaId: string;
+  filialId?: string | null;
   name: string;
   phone?: string;
   email: string;
   passwordHash: string;
   role: Role;
 }): Promise<User> {
+  let filialId: string | null = null;
+  if (input.role !== "OWNER") {
+    const filial = input.filialId
+      ? await prisma.filial.findFirst({ where: { id: input.filialId, empresaId: input.empresaId }, select: { id: true } })
+      : await prisma.filial.findFirst({ where: { empresaId: input.empresaId }, orderBy: { createdAt: "asc" }, select: { id: true } });
+    if (!filial) {
+      throw new Error("Gerentes e funcionários precisam estar vinculados a uma filial válida.");
+    }
+    filialId = filial.id;
+  }
   const user = await prisma.user.create({
     data: {
       id: createId("user"),
       empresaId: input.empresaId,
+      filialId,
       name: input.name,
       phone: input.phone,
       email: input.email,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createPromotion, createUser, setProductActive } from "@/lib/repo";
+import { prisma } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
 // getCurrentUser depende de next/headers (cookies), que só funciona dentro de uma
@@ -62,6 +63,29 @@ describe("POST /api/pedidos", () => {
 
     expect(res.status).toBe(400);
     expect(json.error).toBeTruthy();
+  });
+
+  it("bloqueia API para empresa ainda não aprovada", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    await prisma.empresa.update({ where: { id: empresa.id }, data: { approved: false } });
+    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
+
+    const res = await POST(makeRequest({ type: "OUT", paymentMethod: "DINHEIRO", items: [] }));
+
+    expect(res.status).toBe(403);
+  });
+
+  it("bloqueia API para assinatura vencida", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    await prisma.empresa.update({
+      where: { id: empresa.id },
+      data: { paidUntil: new Date(Date.now() - 60_000) },
+    });
+    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
+
+    const res = await POST(makeRequest({ type: "OUT", paymentMethod: "DINHEIRO", items: [] }));
+
+    expect(res.status).toBe(403);
   });
 
   it("funcionário não pode alterar o preço de venda", async () => {
@@ -130,6 +154,25 @@ describe("POST /api/pedidos", () => {
 
     expect(res.status).toBe(400);
     expect(json.error).toMatch(/negativo/);
+  });
+
+  it("rejeita o mesmo produto repetido no payload", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    const product = await seedProduct(filial, { currentStock: 10, salePrice: 10 });
+    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
+
+    const res = await POST(
+      makeRequest({
+        type: "OUT",
+        paymentMethod: "DINHEIRO",
+        items: [
+          { productId: product.id, quantity: 4 },
+          { productId: product.id, quantity: 4 },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(400);
   });
 
   it("avisa quando o estoque é insuficiente e não fecha o pedido sem force", async () => {

@@ -16,6 +16,13 @@ export interface PedidoItemInput {
   source: MovementSource;
 }
 
+export class StockConflictError extends Error {
+  constructor(message = "O estoque foi alterado por outra operação. Atualize a tela e tente novamente.") {
+    super(message);
+    this.name = "StockConflictError";
+  }
+}
+
 /** Verifica quais itens de um pedido de saída excedem o estoque atual (para aviso antes de forçar o fechamento).
  * Não se aplica a pedidos de entrada, que sempre aumentam o estoque. */
 export async function checkPedidoStock(
@@ -54,6 +61,7 @@ export async function createPedido(input: {
   items: PedidoItemInput[];
   paymentMethod: PaymentMethod;
   boletoDueDays?: number | null;
+  allowNegativeStock?: boolean;
 }): Promise<PedidoWithItems> {
   const pedidoId = createId("pedido");
   const number = await nextPedidoNumber(input.filialId, input.type);
@@ -92,10 +100,19 @@ export async function createPedido(input: {
           pedidoId,
         },
       });
-      await tx.product.updateMany({
-        where: { id: item.productId, filialId: input.filialId },
+      const updated = await tx.product.updateMany({
+        where: {
+          id: item.productId,
+          filialId: input.filialId,
+          ...(input.type === "OUT" && !input.allowNegativeStock
+            ? { currentStock: { gte: item.quantity } }
+            : {}),
+        },
         data: { currentStock: { increment: stockSign * item.quantity } },
       });
+      if (updated.count !== 1) {
+        throw new StockConflictError();
+      }
     }
   });
 
@@ -262,24 +279,46 @@ export async function checkPedidoCancelStock(pedido: PedidoWithItems): Promise<P
 export async function cancelPedido(
   id: string,
   filialId: string,
-  cancelledByUserId: string
+  cancelledByUserId: string,
+  allowNegativeStock = false
 ): Promise<PedidoWithItems | undefined> {
-  const pedido = await getPedidoById(id, filialId);
-  if (!pedido || pedido.cancelledAt) return pedido;
-
-  const stockSign = pedido.type === "IN" ? -1 : 1;
-
   await prisma.$transaction(async (tx) => {
-    for (const item of pedido.items) {
-      await tx.product.updateMany({
-        where: { id: item.productId, filialId },
-        data: { currentStock: { increment: stockSign * item.quantity } },
-      });
-    }
-    await tx.pedido.update({
-      where: { id },
+    const pedido = await tx.pedido.findFirst({
+      where: { id, filialId },
+      select: { type: true, cancelledAt: true },
+    });
+    if (!pedido || pedido.cancelledAt) return;
+
+    // "Reivindica" o cancelamento antes de mexer no estoque. Em duas requisições
+    // concorrentes, apenas uma consegue mudar cancelledAt de null para uma data.
+    const claimed = await tx.pedido.updateMany({
+      where: { id, filialId, cancelledAt: null },
       data: { cancelledAt: new Date(), cancelledByUserId },
     });
+    if (claimed.count !== 1) return;
+
+    const items = await tx.movement.findMany({
+      where: { pedidoId: id, filialId },
+      select: { productId: true, quantity: true },
+    });
+    const stockSign = pedido.type === "IN" ? -1 : 1;
+    for (const item of items) {
+      const updated = await tx.product.updateMany({
+        where: {
+          id: item.productId,
+          filialId,
+          ...(pedido.type === "IN" && !allowNegativeStock
+            ? { currentStock: { gte: item.quantity } }
+            : {}),
+        },
+        data: { currentStock: { increment: stockSign * item.quantity } },
+      });
+      if (updated.count !== 1) {
+        throw new StockConflictError(
+          "O cancelamento deixaria o estoque negativo. Atualize a tela ou confirme o cancelamento forçado."
+        );
+      }
+    }
   });
 
   return getPedidoById(id, filialId);

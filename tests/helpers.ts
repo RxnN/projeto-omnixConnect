@@ -8,6 +8,19 @@ import type { Filial, Product } from "@/lib/types";
 // e tudo o que foi criado é apagado ao final do arquivo de teste.
 const createdEmpresaIds: string[] = [];
 let emailCounter = 0;
+let documentCounter = 0;
+
+function nextTestCnpj() {
+  const base = String(10_000_000_000 + documentCounter++).padStart(12, "0");
+  const digit = (value: string, weights: number[]) => {
+    const total = value.split("").reduce((sum, current, index) => sum + Number(current) * weights[index], 0);
+    const remainder = total % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+  const first = digit(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const second = digit(base + first, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base}${first}${second}`;
+}
 
 afterAll(async () => {
   for (const empresaId of createdEmpresaIds) {
@@ -24,8 +37,12 @@ afterAll(async () => {
 });
 
 export async function seedFixture() {
-  const empresa = await createEmpresa(`Empresa de Teste ${Math.random().toString(36).slice(2)}`, "12345678901");
+  const empresa = await createEmpresa(
+    `Empresa de Teste ${Math.random().toString(36).slice(2)}`,
+    nextTestCnpj()
+  );
   createdEmpresaIds.push(empresa.id);
+  await prisma.empresa.update({ where: { id: empresa.id }, data: { approved: true } });
   const filial = await createFilial(empresa.id, "Matriz");
   const user = await createUser({
     empresaId: empresa.id,

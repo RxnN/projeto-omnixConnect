@@ -19,3 +19,29 @@ export async function createFilial(empresaId: string, name: string): Promise<Fil
   });
   return { ...filial, createdAt: toIso(filial.createdAt) };
 }
+
+export async function createFilialWithinLimit(
+  empresaId: string,
+  name: string
+): Promise<{ filial: Filial | null; limit: number }> {
+  return prisma.$transaction(async (tx) => {
+    // UPDATE com incremento zero obtém lock da linha da empresa. Assim, duas criações
+    // concorrentes para o mesmo tenant são serializadas antes da contagem.
+    const empresa = await tx.empresa.update({
+      where: { id: empresaId },
+      data: { maxFiliais: { increment: 0 } },
+      select: { maxFiliais: true },
+    });
+    const count = await tx.filial.count({ where: { empresaId } });
+    if (count >= empresa.maxFiliais) {
+      return { filial: null, limit: empresa.maxFiliais };
+    }
+    const filial = await tx.filial.create({
+      data: { id: createId("filial"), empresaId, name: name.trim() },
+    });
+    return {
+      filial: { ...filial, createdAt: toIso(filial.createdAt) },
+      limit: empresa.maxFiliais,
+    };
+  });
+}

@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
-import { checkPedidoStock, createPedido, getProductById, listPromotionsByProductIds } from "@/lib/repo";
+import {
+  checkPedidoStock,
+  createPedido,
+  getProductById,
+  listPromotionsByProductIds,
+  StockConflictError,
+} from "@/lib/repo";
 import type { PedidoItemInput } from "@/lib/repo";
 import type { MovementType } from "@/lib/types";
 import { withErrorHandling } from "@/lib/api-handler";
 import { pedidoCreateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { getEffectivePrice } from "@/lib/pricing";
-import { getEffectivePermissions } from "@/lib/auth";
+import { getEffectivePermissions, requireApiUser } from "@/lib/auth";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   const permissions = await getEffectivePermissions(user);
   // Todos os papéis (OWNER, MANAGER, EMPLOYEE) podem fechar pedidos.
 
@@ -94,15 +98,24 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
   }
 
-  const pedido = await createPedido({
-    empresaId: user.empresaId,
-    filialId,
-    type: type as MovementType,
-    createdByUserId: user.userId,
-    items,
-    paymentMethod,
-    boletoDueDays,
-  });
+  let pedido;
+  try {
+    pedido = await createPedido({
+      empresaId: user.empresaId,
+      filialId,
+      type: type as MovementType,
+      createdByUserId: user.userId,
+      items,
+      paymentMethod,
+      boletoDueDays,
+      allowNegativeStock: type === "OUT" && Boolean(force && canForceStock),
+    });
+  } catch (error) {
+    if (error instanceof StockConflictError) {
+      return NextResponse.json({ warning: error.message, canForce: canForceStock }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ ok: true, pedido });
 });

@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Product } from "@/lib/types";
+import type { OrderProduct } from "@/lib/types";
 
 const MAX_RESULTS = 20;
 
-export default function ProductAutocomplete({
+export default function ProductAutocomplete<T extends OrderProduct>({
   products,
   onSelect,
   placeholder,
   autoFocus,
 }: {
-  products: Product[];
-  onSelect: (product: Product) => void;
+  products: T[];
+  onSelect: (product: T) => void;
   placeholder?: string;
   autoFocus?: boolean;
 }) {
@@ -49,7 +49,7 @@ export default function ProductAutocomplete({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function selectProduct(product: Product) {
+  function selectProduct(product: T) {
     onSelect(product);
     setQuery("");
     setOpen(false);

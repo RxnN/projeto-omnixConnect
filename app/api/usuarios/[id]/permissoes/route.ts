@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
 import { getUserById, updateUserPermissions } from "@/lib/repo";
 import {
   getDefaultPermissions,
@@ -7,18 +6,19 @@ import {
   resolvePermissions,
 } from "@/lib/permissions";
 import { withErrorHandling } from "@/lib/api-handler";
+import { requireApiUser } from "@/lib/auth";
 
-export const PUT = withErrorHandling<{ params: { id: string } }>(async (
+export const PUT = withErrorHandling<{ params: Promise<{ id: string }> }>(async (
   req: NextRequest,
   { params }
 ) => {
-  const owner = await getCurrentUser();
-  if (!owner) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const { id } = await params;
+  const owner = await requireApiUser();
   if (owner.role !== "OWNER") {
     return NextResponse.json({ error: "Somente o Dono pode alterar permissões." }, { status: 403 });
   }
 
-  const target = await getUserById(params.id);
+  const target = await getUserById(id);
   if (!target || target.empresaId !== owner.empresaId) {
     return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
   }
@@ -47,4 +47,3 @@ export const PUT = withErrorHandling<{ params: { id: string } }>(async (
     effective: resolvePermissions(updated.role, updated.permissions),
   });
 });
-

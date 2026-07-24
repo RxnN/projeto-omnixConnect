@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { getCurrentUser } from "@/lib/session";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, requireApiUser } from "@/lib/auth";
 import { createProduct, getEmpresaById, getProductByCode, updateProduct } from "@/lib/repo";
 import type { PackageType } from "@/lib/types";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
+import { rateLimit } from "@/lib/rate-limit";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_ROWS = 5_000;
+const MAX_COLUMNS = 30;
+const MAX_CELLS = 100_000;
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const user = await requireApiUser();
   if (!(await hasPermission(user, "IMPORT_PRODUCTS"))) {
     return NextResponse.json({ error: "Você não tem permissão para importar produtos." }, { status: 403 });
   }
@@ -23,6 +25,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 403 }
     );
   }
+  const uploadLimit = await rateLimit(`product-import:${user.empresaId}:${user.userId}`, 5, 10 * 60_000);
+  if (!uploadLimit.allowed) {
+    return NextResponse.json(
+      { error: "Muitas importações em sequência. Aguarde antes de tentar novamente." },
+      { status: 429, headers: { "Retry-After": String(uploadLimit.retryAfterSeconds) } }
+    );
+  }
 
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
@@ -32,11 +41,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: "Arquivo muito grande (máximo 5MB)." }, { status: 400 });
   }
+  if (file.type && file.type !== "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    return NextResponse.json({ error: "Formato inválido. Envie uma planilha .xlsx." }, { status: 400 });
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+    return NextResponse.json({ error: "O arquivo não possui uma estrutura XLSX válida." }, { status: 400 });
+  }
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(buffer, { type: "buffer" });
+    workbook = XLSX.read(buffer, { type: "buffer", sheetRows: MAX_ROWS + 1 });
   } catch {
     return NextResponse.json(
       { error: "Não foi possível ler o arquivo. Envie um arquivo .xlsx válido." },
@@ -47,6 +62,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) {
     return NextResponse.json({ error: "A planilha enviada está vazia." }, { status: 400 });
+  }
+  const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+  if (range) {
+    const rowCount = range.e.r - range.s.r + 1;
+    const columnCount = range.e.c - range.s.c + 1;
+    if (rowCount > MAX_ROWS || columnCount > MAX_COLUMNS || rowCount * columnCount > MAX_CELLS) {
+      return NextResponse.json(
+        { error: `A planilha excede o limite de ${MAX_ROWS} linhas e ${MAX_COLUMNS} colunas.` },
+        { status: 400 }
+      );
+    }
   }
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
   const filialId = await getCurrentFilialId(user);

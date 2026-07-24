@@ -5,6 +5,7 @@ import {
   checkPedidoStock,
   createPedido,
   getProductById,
+  StockConflictError,
 } from "@/lib/repo";
 import { seedFixture, seedProduct } from "./helpers";
 
@@ -101,6 +102,26 @@ describe("createPedido", () => {
     expect((await getProductById(a.id, filial.id))!.currentStock).toBe(7);
     expect((await getProductById(b.id, filial.id))!.currentStock).toBe(3);
   });
+
+  it("não deixa duas vendas concorrentes consumirem o mesmo saldo", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    const product = await seedProduct(filial, { currentStock: 5 });
+    const input = {
+      empresaId: empresa.id,
+      filialId: filial.id,
+      type: "OUT" as const,
+      paymentMethod: "DINHEIRO" as const,
+      createdByUserId: user.id,
+      items: [{ productId: product.id, quantity: 4, unitValue: 10, source: "MANUAL" as const }],
+    };
+
+    const results = await Promise.allSettled([createPedido(input), createPedido(input)]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toBeInstanceOf(StockConflictError);
+    expect((await getProductById(product.id, filial.id))!.currentStock).toBe(1);
+  });
 });
 
 describe("checkPedidoStock", () => {
@@ -180,6 +201,26 @@ describe("cancelPedido", () => {
 
     await cancelPedido(pedido.id, filial.id, user.id);
     await cancelPedido(pedido.id, filial.id, user.id);
+
+    expect((await getProductById(product.id, filial.id))!.currentStock).toBe(10);
+  });
+
+  it("dois cancelamentos concorrentes revertem o estoque apenas uma vez", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    const product = await seedProduct(filial, { currentStock: 10 });
+    const pedido = await createPedido({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      type: "OUT",
+      paymentMethod: "DINHEIRO",
+      createdByUserId: user.id,
+      items: [{ productId: product.id, quantity: 4, unitValue: 10, source: "MANUAL" }],
+    });
+
+    await Promise.all([
+      cancelPedido(pedido.id, filial.id, user.id),
+      cancelPedido(pedido.id, filial.id, user.id),
+    ]);
 
     expect((await getProductById(product.id, filial.id))!.currentStock).toBe(10);
   });

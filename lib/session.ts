@@ -32,7 +32,13 @@ declare module "iron-session" {
   }
 }
 
-if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+const EXAMPLE_SESSION_SECRET = "troque_esta_chave_super_secreta_com_pelo_menos_32_caracteres_para_producao";
+
+if (
+  !process.env.SESSION_SECRET ||
+  process.env.SESSION_SECRET.length < 32 ||
+  process.env.SESSION_SECRET === EXAMPLE_SESSION_SECRET
+) {
   throw new Error(
     "SESSION_SECRET não configurado (ou tem menos de 32 caracteres). Defina uma chave forte e única em .env — " +
       "nunca use um valor padrão, isso permitiria forjar sessões de qualquer usuário."
@@ -51,7 +57,7 @@ export const sessionOptions = {
 };
 
 export async function getSession() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   return getIronSession<IronSessionData>(cookieStore, sessionOptions);
 }
 
