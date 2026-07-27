@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 
 export class ApiError extends Error {
   constructor(
@@ -66,6 +67,7 @@ export function withErrorHandling<C = unknown>(
         return NextResponse.json({ error: error.message }, { status: error.status, headers: error.headers });
       }
       console.error(`[${req.method} ${req.nextUrl.pathname}]`, error);
+      Sentry.captureException(error);
       return NextResponse.json({ error: "Ocorreu um erro interno. Tente novamente." }, { status: 500 });
     }
   };

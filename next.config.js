@@ -1,3 +1,5 @@
+const { withSentryConfig } = require("@sentry/nextjs");
+
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -17,7 +19,9 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",
-      `connect-src 'self' https://challenges.cloudflare.com${isDev ? " ws:" : ""}`,
+      // Domínios de ingestão do Sentry SaaS (variam por região da conta) — se a conta
+      // usar Sentry self-hosted/custom domain, ajustar aqui manualmente.
+      `connect-src 'self' https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io${isDev ? " ws:" : ""}`,
       "frame-src 'self' https://challenges.cloudflare.com",
       "object-src 'none'",
       "base-uri 'self'",
@@ -45,4 +49,12 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Sem SENTRY_AUTH_TOKEN (antes de criar a conta), o plugin só pula o upload de
+// source maps silenciosamente — não quebra o build.
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  widenClientFileUpload: true,
+});
