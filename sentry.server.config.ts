@@ -5,4 +5,8 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   tracesSampleRate: 0.1,
+  // Envia console.error/warn/log do servidor (ex: o console.error de lib/api-handler.ts)
+  // pra aba Logs do Sentry, além do captureException que já cria o Issue.
+  integrations: [Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] })],
+  enableLogs: true,
 });
