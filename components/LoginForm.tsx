@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -16,12 +19,16 @@ export default function LoginForm() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, turnstileToken }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Não foi possível entrar.");
         setLoading(false);
+        // Token do Turnstile é de uso único — precisa resolver o desafio de novo
+        // antes de tentar submeter outra vez.
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         return;
       }
       // Navegação completa — garante que toda a árvore (layout + página) renderize do
@@ -31,6 +38,8 @@ export default function LoginForm() {
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     }
   }
 
@@ -64,8 +73,9 @@ export default function LoginForm() {
           placeholder="••••••••"
         />
       </div>
+      <Turnstile ref={turnstileRef} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken("")} />
       {error && <p className="text-sm text-red-600">{error}</p>}
-      <button type="submit" disabled={loading} className="btn-primary w-full">
+      <button type="submit" disabled={loading || !turnstileToken} className="btn-primary w-full">
         {loading ? "Entrando..." : "Entrar"}
       </button>
     </form>

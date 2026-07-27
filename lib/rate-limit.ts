@@ -77,7 +77,13 @@ export async function rateLimit(
 }
 
 export function clientIp(req: NextRequest): string {
-  const trustProxy = process.env.TRUST_PROXY === "true" || process.env.NODE_ENV === "test";
+  // A Vercel define VERCEL=1 automaticamente em todo deploy e reescreve X-Forwarded-For
+  // na borda antes de repassar pro app — o valor não pode ser forjado pelo cliente nesse
+  // ambiente. TRUST_PROXY continua disponível pra confiar manualmente em outro proxy.
+  const trustProxy =
+    process.env.TRUST_PROXY === "true" ||
+    process.env.VERCEL === "1" ||
+    process.env.NODE_ENV === "test";
   if (!trustProxy) return "proxy-nao-configurado";
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();

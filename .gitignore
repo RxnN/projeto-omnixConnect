@@ -12,3 +12,8 @@ npm-debug.log*
 *.tsbuildinfo
 .claude/
 .vscode/
+
+# Documentação interna de segurança/arquitetura — não deve ficar no histórico do Git.
+auditoria.md
+relatorio-seguranca.md
+plano-de-acao.md

@@ -77,6 +77,7 @@ export const cadastroSchema = z.object({
     .min(10, "A senha deve ter pelo menos 10 caracteres.")
     .regex(/[A-Za-zÀ-ÿ]/, "A senha deve conter ao menos uma letra.")
     .regex(/\d/, "A senha deve conter ao menos um número."),
+  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página."),
 });
 
 const optionalDate = z.preprocess(
@@ -104,6 +105,7 @@ export const promotionCreateSchema = z
 export const loginSchema = z.object({
   email: z.string().trim().min(1, "Informe e-mail e senha.").toLowerCase(),
   password: z.string().min(1, "Informe e-mail e senha."),
+  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página."),
 });
 
 const pedidoItemSchema = z.object({

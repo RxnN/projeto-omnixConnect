@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withErrorHandling } from "@/lib/api-handler";
 import { cadastroSchema, firstZodError } from "@/lib/validation";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const globalLimit = await rateLimit("cadastro:global", 100, 60 * 60_000);
@@ -28,7 +29,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) {
     return NextResponse.json({ error: firstZodError(parsed) }, { status: 400 });
   }
-  const { empresaName, cnpjCpf, userName, phone, email, password } = parsed.data;
+  const { empresaName, cnpjCpf, userName, phone, email, password, turnstileToken } = parsed.data;
+
+  await verifyTurnstile(turnstileToken, clientIp(req));
+
   const [documentLimit, emailLimit] = await Promise.all([
     rateLimit(`cadastro-documento:${cnpjCpf}`, 3, 24 * 60 * 60_000),
     rateLimit(`cadastro-email:${email}`, 3, 24 * 60 * 60_000),

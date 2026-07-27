@@ -283,7 +283,7 @@ export async function getRankingRecorrencia(
   if (grouped.length === 0) return [];
 
   const products = await prisma.product.findMany({
-    where: { id: { in: grouped.map((g) => g.productId) } },
+    where: { id: { in: grouped.map((g) => g.productId) }, empresaId, ...(filialId ? { filialId } : {}) },
     select: { id: true, name: true, unit: true },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));

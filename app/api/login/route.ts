@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withErrorHandling } from "@/lib/api-handler";
 import { loginSchema, firstZodError } from "@/lib/validation";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -27,7 +28,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) {
     return NextResponse.json({ error: firstZodError(parsed) }, { status: 400 });
   }
-  const { email, password } = parsed.data;
+  const { email, password, turnstileToken } = parsed.data;
+
+  await verifyTurnstile(turnstileToken, clientIp(req));
 
   const emailLimit = await rateLimit(`login-email:${email}`, 8, 15 * 60_000);
   if (!emailLimit.allowed) {

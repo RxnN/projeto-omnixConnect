@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { createPromotion, createUser, setProductActive } from "@/lib/repo";
+import { createPedido, createPromotion, createUser, setProductActive } from "@/lib/repo";
 import { prisma } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
@@ -13,6 +13,7 @@ vi.mock("@/lib/session", () => ({
 
 import { getCurrentUser } from "@/lib/session";
 import { POST as pedidosPost } from "@/app/api/pedidos/route";
+import { POST as cancelPost } from "@/app/api/pedidos/[id]/cancel/route";
 
 // A rota não usa o segundo parâmetro (sem segmento dinâmico), mas withErrorHandling
 // exige um `context` no tipo; passamos undefined pra bater com a assinatura real do Next.
@@ -377,5 +378,39 @@ describe("POST /api/pedidos", () => {
     expect(res.status).toBe(200);
     expect(json.pedido.paymentMethod).toBe("BOLETO");
     expect(json.pedido.boletoDueDays).toBe(30);
+  });
+});
+
+describe("POST /api/pedidos/[id]/cancel", () => {
+  afterEach(() => {
+    vi.mocked(getCurrentUser).mockReset();
+  });
+
+  it("não permite cancelar pedido de outra empresa (isolamento multi-tenant)", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    const other = await seedFixture();
+    const foreignProduct = await seedProduct(other.filial, { currentStock: 10 });
+    const foreignPedido = await createPedido({
+      empresaId: other.empresa.id,
+      filialId: other.filial.id,
+      type: "OUT",
+      createdByUserId: other.user.id,
+      paymentMethod: "DINHEIRO",
+      items: [{ productId: foreignProduct.id, quantity: 1, unitValue: 20, source: "MANUAL" }],
+    });
+    await loginAs(empresa.id, filial.id, empresa.name, user.id, user.name, user.email, "OWNER");
+
+    const res = await cancelPost(
+      new NextRequest("http://localhost/api/pedidos/x/cancel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: foreignPedido.id }) }
+    );
+
+    expect(res.status).toBe(404);
+    const stillActive = await prisma.pedido.findUnique({ where: { id: foreignPedido.id } });
+    expect(stillActive?.cancelledAt).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
 
 export default function CadastroForm() {
   const [empresaName, setEmpresaName] = useState("");
@@ -12,6 +13,8 @@ export default function CadastroForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,14 +31,18 @@ export default function CadastroForm() {
       const res = await fetch("/api/cadastro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ empresaName, cnpjCpf, userName, phone, email, password }),
+        body: JSON.stringify({ empresaName, cnpjCpf, userName, phone, email, password, turnstileToken }),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         setError(data.error ?? "Não foi possível realizar o cadastro.");
         setLoading(false);
+        // Token do Turnstile é de uso único — precisa resolver o desafio de novo
+        // antes de tentar submeter outra vez.
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
         return;
       }
 
@@ -45,6 +52,8 @@ export default function CadastroForm() {
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     }
   }
 
@@ -140,13 +149,15 @@ export default function CadastroForm() {
         />
       </div>
 
+      <Turnstile ref={turnstileRef} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken("")} />
+
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>
           {error}
         </p>
       )}
 
-      <button type="submit" disabled={loading} className="btn-primary w-full">
+      <button type="submit" disabled={loading || !turnstileToken} className="btn-primary w-full">
         {loading ? "Cadastrando..." : "Cadastrar e Entrar"}
       </button>
 

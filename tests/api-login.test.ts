@@ -11,15 +11,21 @@ vi.mock("@/lib/session", () => ({
   getSession: vi.fn(async () => ({ user: undefined, save: vi.fn() })),
 }));
 
+// Evita depender do endpoint real da Cloudflare nos testes — a verificação do token
+// em si é coberta à parte (lib/turnstile), aqui só interessa o restante da rota.
+vi.mock("@/lib/turnstile", () => ({
+  verifyTurnstile: vi.fn(async () => {}),
+}));
+
 import { POST as loginPost } from "@/app/api/login/route";
 
 const POST = (req: NextRequest) => loginPost(req, undefined);
 
-function makeRequest(body: unknown, ip: string) {
+function makeRequest(body: Record<string, unknown>, ip: string) {
   return new NextRequest("http://localhost/api/login", {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": ip },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ turnstileToken: "test-token", ...body }),
   });
 }
 

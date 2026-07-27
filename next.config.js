@@ -8,13 +8,17 @@ const nextConfig = {
     // com conteúdo dinâmico por requisição. 'unsafe-eval' só entra em desenvolvimento
     // — o webpack do Next usa eval() para os módulos em dev/Fast Refresh; em produção
     // isso não é necessário e fica de fora, mantendo a CSP mais restrita.
+    // challenges.cloudflare.com liberado em script-src/connect-src/frame-src pro widget
+    // Cloudflare Turnstile (login/cadastro) — carrega um script e renderiza um iframe
+    // desse domínio, além de chamar ele via fetch/XHR pra validar o desafio.
     const csp = [
       "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+      `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",
-      `connect-src 'self'${isDev ? " ws:" : ""}`,
+      `connect-src 'self' https://challenges.cloudflare.com${isDev ? " ws:" : ""}`,
+      "frame-src 'self' https://challenges.cloudflare.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
