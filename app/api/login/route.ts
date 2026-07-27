@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import bcrypt from "bcryptjs";
 import { getUserByEmail, getEmpresaById } from "@/lib/repo";
 import { getSession } from "@/lib/session";
@@ -43,6 +44,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await getUserByEmail(email);
   const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !valid) {
+    // Sem e-mail nos atributos — a métrica é só pra acompanhar volume/tendência de
+    // tentativas inválidas, não pra identificar quem tentou.
+    Sentry.metrics.count("login_failed", 1);
     return NextResponse.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
   }
 

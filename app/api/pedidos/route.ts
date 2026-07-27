@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import {
   checkPedidoStock,
   createPedido,
@@ -116,6 +117,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
     throw error;
   }
+
+  Sentry.metrics.count("pedido_closed", 1, { attributes: { type: pedido.type } });
 
   return NextResponse.json({ ok: true, pedido });
 });
