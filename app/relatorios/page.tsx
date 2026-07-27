@@ -1,6 +1,6 @@
 import { getEffectivePermissions, requirePermission } from "@/lib/auth";
 import { getCurrentFilialId } from "@/lib/filial-context";
-import { listFiliais } from "@/lib/repo";
+import { listActiveFiliais } from "@/lib/repo";
 import {
   getEstoqueAtual,
   getFaturamento,
@@ -28,7 +28,7 @@ export default async function RelatoriosPage({
   // Gerente/funcionário estão sempre travados na própria filial (relatório nunca
   // mistura dados de outras filiais que essa pessoa não trabalha). Dono enxerga
   // "todas as filiais" por padrão (consolidado), com opção de filtrar por uma só.
-  const filiais = canChooseBranch ? await listFiliais(user.empresaId) : [];
+  const filiais = canChooseBranch ? await listActiveFiliais(user.empresaId) : [];
   let filialId: string | undefined;
   if (canChooseBranch) {
     const requested = filiais.find((f) => f.id === filters.filial);

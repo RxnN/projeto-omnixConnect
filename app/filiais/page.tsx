@@ -1,6 +1,8 @@
 import { requirePermission } from "@/lib/auth";
 import { getEmpresaById, listFiliais } from "@/lib/repo";
+import { estimateFilialUpgrade } from "@/lib/billing";
 import FilialForm from "@/components/FilialForm";
+import FilialUpgradeRequest from "@/components/FilialUpgradeRequest";
 import { formatDateShort } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
 
@@ -8,7 +10,9 @@ export default async function FiliaisPage() {
   const user = await requirePermission("MANAGE_BRANCHES");
   const [filiais, empresa] = await Promise.all([listFiliais(user.empresaId), getEmpresaById(user.empresaId)]);
   const limite = empresa?.maxFiliais ?? 1;
-  const noLimite = filiais.length >= limite;
+  const ativas = filiais.filter((f) => f.approved);
+  const pendente = filiais.find((f) => !f.approved);
+  const noLimite = ativas.length >= limite;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -18,13 +22,18 @@ export default async function FiliaisPage() {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Filiais cadastradas</h2>
           <span className="text-xs" style={{ color: "var(--ink-soft)" }}>
-            {filiais.length} de {limite} licenciada(s)
+            {ativas.length} de {limite} licenciada(s)
           </span>
         </div>
         <ul className="grid sm:grid-cols-2 gap-3">
           {filiais.map((f) => (
             <li key={f.id} className="rounded-xl border p-4 flex items-center justify-between gap-3" style={{ borderColor: "var(--border)", backgroundColor: "var(--surface-2)" }}>
-              <span><strong className="block">{f.name}</strong><small style={{ color: "var(--ink-soft)" }}>Filial ativa</small></span>
+              <span>
+                <strong className="block">{f.name}</strong>
+                <small style={{ color: f.approved ? "var(--ink-soft)" : "var(--warn)" }}>
+                  {f.approved ? "Filial ativa" : "Aguardando aprovação"}
+                </small>
+              </span>
               <span className="text-xs" style={{ color: "var(--ink-soft)" }}>
                 criada em {formatDateShort(new Date(f.createdAt))}
               </span>
@@ -35,11 +44,12 @@ export default async function FiliaisPage() {
 
       <div className="card space-y-3">
         <h2 className="font-semibold">Nova filial</h2>
-        {noLimite ? (
+        {pendente ? (
           <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
-            Sua conta está licenciada para {limite} filial(is) e já atingiu o limite. Fale com a gente pra liberar
-            mais.
+            Sua solicitação para "{pendente.name}" está aguardando aprovação da equipe.
           </p>
+        ) : noLimite ? (
+          <FilialUpgradeRequest estimate={estimateFilialUpgrade(ativas.length)} />
         ) : (
           <FilialForm />
         )}

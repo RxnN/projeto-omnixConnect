@@ -32,6 +32,7 @@ export interface Filial {
   id: string;
   empresaId: string;
   name: string;
+  approved: boolean;
   createdAt: string;
 }
 

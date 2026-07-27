@@ -82,6 +82,10 @@ model Filial {
   empresaId String     @map("adegaId")
   empresa   Empresa    @relation(fields: [empresaId], references: [id])
   name      String
+  /// Filial extra solicitada além do limite do plano nasce approved=false e fica
+  /// invisível pra seletor/operação até aprovação manual (scripts/approve-filial.ts).
+  /// Default true preserva todas as filiais já existentes sem exigir backfill.
+  approved  Boolean    @default(true)
   createdAt DateTime   @default(now())
   users     User[]
   products  Product[]

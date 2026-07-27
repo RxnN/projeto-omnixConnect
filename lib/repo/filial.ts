@@ -8,6 +8,16 @@ export async function listFiliais(empresaId: string): Promise<Filial[]> {
   return filiais.map((f) => ({ ...f, createdAt: toIso(f.createdAt) }));
 }
 
+/** Só filiais aprovadas — usada em seletor/operação, nunca deve oferecer uma filial
+ * ainda pendente de aprovação de cobrança como opção utilizável. */
+export async function listActiveFiliais(empresaId: string): Promise<Filial[]> {
+  const filiais = await prisma.filial.findMany({
+    where: { empresaId, approved: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return filiais.map((f) => ({ ...f, createdAt: toIso(f.createdAt) }));
+}
+
 export async function getFilialById(id: string, empresaId: string): Promise<Filial | undefined> {
   const filial = await prisma.filial.findFirst({ where: { id, empresaId } });
   return filial ? { ...filial, createdAt: toIso(filial.createdAt) } : undefined;
@@ -32,7 +42,9 @@ export async function createFilialWithinLimit(
       data: { maxFiliais: { increment: 0 } },
       select: { maxFiliais: true },
     });
-    const count = await tx.filial.count({ where: { empresaId } });
+    // Filiais pendentes de aprovação (solicitadas além do plano) não consomem o limite
+    // já pago — só contam depois que a cobrança extra for aprovada.
+    const count = await tx.filial.count({ where: { empresaId, approved: true } });
     if (count >= empresa.maxFiliais) {
       return { filial: null, limit: empresa.maxFiliais };
     }
@@ -44,4 +56,14 @@ export async function createFilialWithinLimit(
       limit: empresa.maxFiliais,
     };
   });
+}
+
+/** Cria a filial "extra" solicitada além do limite atual do plano — nasce pendente
+ * (approved=false) e só passa a ser utilizável depois de aprovada manualmente via
+ * scripts/approve-filial.ts, quando a cobrança adicional for confirmada. */
+export async function createPendingFilial(empresaId: string, name: string): Promise<Filial> {
+  const filial = await prisma.filial.create({
+    data: { id: createId("filial"), empresaId, name: name.trim(), approved: false },
+  });
+  return { ...filial, createdAt: toIso(filial.createdAt) };
 }

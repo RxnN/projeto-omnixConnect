@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createFilial, getEmpresaById, getFilialById, listFiliais } from "./repo";
+import { createFilial, getEmpresaById, getFilialById, listActiveFiliais } from "./repo";
 import type { SessionData } from "./session";
 
 const FILIAL_COOKIE = "selectedFilialId";
@@ -29,7 +29,7 @@ export async function getCurrentFilialId(user: SessionData): Promise<string> {
     if (filial) return filial.id;
   }
 
-  const filiais = await listFiliais(user.empresaId);
+  const filiais = await listActiveFiliais(user.empresaId);
   if (filiais.length > 0) return filiais[0].id;
 
   const empresa = await getEmpresaById(user.empresaId);
