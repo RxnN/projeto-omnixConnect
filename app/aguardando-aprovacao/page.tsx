@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
 import { getEmpresaById } from "@/lib/repo";
-import { isSubscriptionExpired } from "@/lib/auth";
+import { getAccessState, isSubscriptionExpired } from "@/lib/auth";
 
 export default async function AguardandoAprovacaoPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/");
+  const access = await getAccessState();
+  if (access.status === "UNAUTHENTICATED") redirect("/");
+  if (access.status === "OK") redirect("/inicio");
 
+  const user = access.user;
   const empresa = await getEmpresaById(user.empresaId);
   const expired = empresa ? isSubscriptionExpired(empresa) : false;
-  if (empresa?.approved && !expired) redirect("/inicio");
 
   return (
     <div className="max-w-md mx-auto text-center py-20">

@@ -1,13 +1,16 @@
-import { getCurrentUser } from "@/lib/session";
+import { getAccessState } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
 import Link from "next/link";
 import Image from "next/image";
 
 export default async function LoginPage() {
-  const user = await getCurrentUser();
-  if (user) {
+  const access = await getAccessState();
+  if (access.status === "OK") {
     redirect("/inicio");
+  }
+  if (access.status === "SUBSCRIPTION_BLOCKED") {
+    redirect("/aguardando-aprovacao");
   }
 
   return (

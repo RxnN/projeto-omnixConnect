@@ -19,14 +19,14 @@ export interface SubscriptionStatus {
   expiringSoon: boolean;
 }
 
-type AccessState =
+export type AccessState =
   | { status: "UNAUTHENTICATED" }
   | { status: "SUBSCRIPTION_BLOCKED"; user: SessionData }
   | { status: "OK"; user: SessionData };
 
 /** A sessão prova a identidade, mas papel, filial e vínculo atuais são reconstruídos
  * do banco em cada acesso protegido para que alterações e revogações sejam imediatas. */
-async function getAccessState(): Promise<AccessState> {
+export async function getAccessState(): Promise<AccessState> {
   const sessionUser = await getCurrentUser();
   if (!sessionUser) return { status: "UNAUTHENTICATED" };
 
