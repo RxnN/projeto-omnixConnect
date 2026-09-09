@@ -47,7 +47,9 @@ export default async function RootLayout({
 }) {
   const user = await getCurrentUser();
   if (user) enterTenantDatabaseContext(user.empresaId);
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  const adminRoute = requestHeaders.get("x-admin-route") === "1";
 
   // O layout raiz nunca pode deixar de renderizar a barra lateral (é onde fica o botão
   // "Sair") — se a sessão estiver inválida (ex: empresa apagada) ou o banco estiver
@@ -82,6 +84,7 @@ export default async function RootLayout({
           currentFilialId={currentFilialId}
           subscriptionStatus={subscriptionStatus}
           permissions={permissions}
+          adminRoute={adminRoute}
         >
           {children}
         </AppShell>

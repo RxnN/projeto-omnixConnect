@@ -9,6 +9,7 @@ import { loginSchema, firstZodError } from "@/lib/validation";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { runWithDatabaseContext } from "@/lib/prisma";
 import { isSuperAdminEmail } from "@/lib/admin-access";
+import { getAdminPath } from "@/lib/admin-path";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -74,5 +75,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   };
   await session.save();
 
-  return NextResponse.json({ ok: true, role: user.role, admin: isSuperAdminEmail(user.email) });
+  const isAdmin = isSuperAdminEmail(user.email);
+  return NextResponse.json({
+    ok: true,
+    role: user.role,
+    admin: isAdmin,
+    ...(isAdmin ? { adminPath: getAdminPath() } : {}),
+  });
 });

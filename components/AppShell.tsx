@@ -9,7 +9,7 @@ import SubscriptionBanner from "./SubscriptionBanner";
 
 // Telas públicas (login, cadastro) nunca mostram o menu do app, mesmo que a sessão
 // do usuário ainda esteja presente numa navegação em trânsito (ex: logo após "Sair").
-const PUBLIC_ROUTES = ["/", "/cadastro", "/cadastro-recebido", "/verificar-email", "/admin"];
+const PUBLIC_ROUTES = ["/", "/cadastro", "/cadastro-recebido", "/verificar-email"];
 
 export default function AppShell({
   user,
@@ -17,6 +17,7 @@ export default function AppShell({
   currentFilialId,
   subscriptionStatus,
   permissions,
+  adminRoute,
   children,
 }: {
   user: SessionData | null;
@@ -24,12 +25,13 @@ export default function AppShell({
   currentFilialId: string | null;
   subscriptionStatus: SubscriptionStatus | null;
   permissions: EffectivePermissions | null;
+  adminRoute: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const isPublicRoute = pathname !== null && PUBLIC_ROUTES.includes(pathname);
 
-  if (!user || isPublicRoute) {
+  if (!user || isPublicRoute || adminRoute) {
     return <main>{children}</main>;
   }
 

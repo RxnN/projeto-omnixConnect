@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, IDLE_TIMEOUT_MS, type SessionData } from "@/lib/session";
+import { getAdminPath } from "@/lib/admin-path";
 
 /** Renova ou encerra a sessão ociosa e cria a política CSP com um nonce novo por
  * requisição, compartilhado com o layout pelo cabeçalho interno x-nonce. */
@@ -24,7 +25,22 @@ export async function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  const adminPath = getAdminPath();
+  const isAdminEntry = req.nextUrl.pathname === adminPath;
+  if (isAdminEntry) requestHeaders.set("x-admin-route", "1");
+
+  if (adminPath !== "/admin" && req.nextUrl.pathname === "/admin") {
+    return new NextResponse("Página não encontrada.", {
+      status: 404,
+      headers: { "Content-Security-Policy": csp, "X-Content-Type-Options": "nosniff" },
+    });
+  }
+
+  const rewriteUrl = req.nextUrl.clone();
+  if (isAdminEntry) rewriteUrl.pathname = "/admin";
+  const res = isAdminEntry
+    ? NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } })
+    : NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set("Content-Security-Policy", csp);
   const session = await getIronSession<{ user?: SessionData }>(req, res, sessionOptions);
 
