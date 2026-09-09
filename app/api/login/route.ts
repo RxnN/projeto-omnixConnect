@@ -8,6 +8,7 @@ import { withErrorHandling } from "@/lib/api-handler";
 import { loginSchema, firstZodError } from "@/lib/validation";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { runWithDatabaseContext } from "@/lib/prisma";
+import { isSuperAdminEmail } from "@/lib/admin-access";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -73,5 +74,5 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   };
   await session.save();
 
-  return NextResponse.json({ ok: true, role: user.role });
+  return NextResponse.json({ ok: true, role: user.role, admin: isSuperAdminEmail(user.email) });
 });

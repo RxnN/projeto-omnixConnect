@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 
-export type DatabaseContextKind = "tenant" | "login" | "verify";
+export type DatabaseContextKind = "tenant" | "login" | "verify" | "admin";
 
 interface DatabaseContext {
   kind: DatabaseContextKind;
@@ -79,6 +79,10 @@ export function enterTenantDatabaseContext(empresaId: string): void {
   const current = databaseContext.getStore();
   if (current?.kind === "tenant" && current.value === empresaId) return;
   databaseContext.enterWith({ kind: "tenant", value: empresaId });
+}
+
+export function enterAdminDatabaseContext(adminEmail: string): void {
+  databaseContext.enterWith({ kind: "admin", value: adminEmail.toLowerCase().trim() });
 }
 
 async function executeWithContext<T>(operation: (client: any) => Promise<T>): Promise<T> {

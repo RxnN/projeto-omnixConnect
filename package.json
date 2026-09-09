@@ -16,6 +16,8 @@
     "db:rls:activate": "tsx scripts/activate-rls.ts --confirm-deployed",
     "db:rls:disable": "tsx scripts/disable-rls.ts",
     "toggle-import": "tsx scripts/toggle-import.ts",
+    "admin-status": "tsx scripts/admin-status.ts",
+    "list-pending-empresas": "tsx scripts/list-pending-empresas.ts",
     "approve-empresa": "tsx scripts/approve-empresa.ts",
     "set-max-filiais": "tsx scripts/set-max-filiais.ts",
     "test": "vitest run",

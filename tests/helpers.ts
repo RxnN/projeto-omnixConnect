@@ -1,5 +1,5 @@
 import { afterAll } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 import { createEmpresa, createFilial, createProduct, createUser } from "@/lib/repo";
 import type { Filial, Product } from "@/lib/types";
 
@@ -24,14 +24,16 @@ function nextTestCnpj() {
 
 afterAll(async () => {
   for (const empresaId of createdEmpresaIds) {
-    await prisma.movement.deleteMany({ where: { empresaId } });
-    await prisma.pedido.deleteMany({ where: { empresaId } });
-    await prisma.promotion.deleteMany({ where: { empresaId } });
-    await prisma.product.deleteMany({ where: { empresaId } });
-    await prisma.counter.deleteMany({ where: { filial: { empresaId } } });
-    await prisma.user.deleteMany({ where: { empresaId } });
-    await prisma.filial.deleteMany({ where: { empresaId } });
-    await prisma.empresa.deleteMany({ where: { id: empresaId } });
+    await runWithDatabaseContext("tenant", empresaId, async () => {
+      await prisma.movement.deleteMany({ where: { empresaId } });
+      await prisma.pedido.deleteMany({ where: { empresaId } });
+      await prisma.promotion.deleteMany({ where: { empresaId } });
+      await prisma.product.deleteMany({ where: { empresaId } });
+      await prisma.counter.deleteMany({ where: { filial: { empresaId } } });
+      await prisma.user.deleteMany({ where: { empresaId } });
+      await prisma.filial.deleteMany({ where: { empresaId } });
+      await prisma.empresa.deleteMany({ where: { id: empresaId } });
+    });
   }
   await prisma.$disconnect();
 });
@@ -42,16 +44,18 @@ export async function seedFixture() {
     nextTestCnpj()
   );
   createdEmpresaIds.push(empresa.id);
-  await prisma.empresa.update({ where: { id: empresa.id }, data: { approved: true } });
-  const filial = await createFilial(empresa.id, "Matriz");
-  const user = await createUser({
-    empresaId: empresa.id,
-    name: "Usuário de Teste",
-    email: `teste-${emailCounter++}-${Date.now()}@example.com`,
-    passwordHash: "hash-fake",
-    role: "OWNER",
+  return runWithDatabaseContext("tenant", empresa.id, async () => {
+    await prisma.empresa.update({ where: { id: empresa.id }, data: { approved: true } });
+    const filial = await createFilial(empresa.id, "Matriz");
+    const user = await createUser({
+      empresaId: empresa.id,
+      name: "Usuário de Teste",
+      email: `teste-${emailCounter++}-${Date.now()}@example.com`,
+      passwordHash: "hash-fake",
+      role: "OWNER",
+    });
+    return { empresa, filial, user };
   });
-  return { empresa, filial, user };
 }
 
 export async function seedProduct(
