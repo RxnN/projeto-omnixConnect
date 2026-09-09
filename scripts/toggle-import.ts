@@ -2,7 +2,7 @@
 // Uso: npx tsx scripts/toggle-import.ts email@do-dono.com on
 //      npx tsx scripts/toggle-import.ts email@do-dono.com off
 
-import { prisma } from "../lib/prisma";
+import { adminPrisma as prisma } from "../lib/admin-prisma";
 
 async function main() {
   const [email, action] = process.argv.slice(2);

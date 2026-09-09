@@ -2,7 +2,7 @@
 // não é algo que o dono habilita sozinho.
 // Uso: npx tsx scripts/set-max-filiais.ts email@do-dono.com 3
 
-import { prisma } from "../lib/prisma";
+import { adminPrisma as prisma } from "../lib/admin-prisma";
 
 async function main() {
   const [email, countArg] = process.argv.slice(2);

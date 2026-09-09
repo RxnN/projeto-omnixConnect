@@ -12,6 +12,9 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "db:migrate:admin": "node scripts/prisma-admin.cjs migrate deploy",
+    "db:rls:activate": "tsx scripts/activate-rls.ts --confirm-deployed",
+    "db:rls:disable": "tsx scripts/disable-rls.ts",
     "toggle-import": "tsx scripts/toggle-import.ts",
     "approve-empresa": "tsx scripts/approve-empresa.ts",
     "set-max-filiais": "tsx scripts/set-max-filiais.ts",
@@ -23,7 +26,12 @@
   },
   "overrides": {
     "postcss": "$postcss",
-    "sharp": "0.35.3"
+    "sharp": "0.35.4",
+    "brace-expansion": "5.0.9",
+    "browserslist": "4.28.9",
+    "deepmerge-ts": "8.0.2",
+    "fast-uri": "3.1.7",
+    "nanoid": "3.3.18"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -31,10 +39,10 @@
     "bcryptjs": "^2.4.3",
     "fast-xml-parser": "^5.10.1",
     "iron-session": "^8.0.4",
-    "next": "15.5.21",
+    "next": "15.5.25",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -43,11 +51,11 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
-    "postcss": "8.5.22",
+    "postcss": "8.5.28",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

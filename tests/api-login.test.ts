@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { createUser } from "@/lib/repo";
 import { seedFixture } from "./helpers";
+import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 
 // getSession() grava um cookie via next/headers, que só existe dentro de uma requisição
 // real do App Router. Mockamos só essa borda; a busca de usuário e a comparação de senha
@@ -49,6 +50,22 @@ describe("POST /api/login", () => {
 
     expect(res.status).toBe(200);
     expect(json.role).toBe("OWNER");
+  });
+
+  it("não cria sessão antes da confirmação do e-mail", async () => {
+    const { empresa } = await seedFixture();
+    const passwordHash = await bcrypt.hash("senha-correta", 10);
+    const email = `login-unverified-${Date.now()}@teste.com`;
+    const user = await createUser({ empresaId: empresa.id, name: "Não confirmado", email, passwordHash, role: "OWNER" });
+    await runWithDatabaseContext("tenant", empresa.id, () =>
+      prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } }),
+    );
+
+    const res = await POST(makeRequest({ email, password: "senha-correta" }, "10.0.0.20"));
+    const json = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(json.error).toContain("Confirme seu e-mail");
   });
 
   it("rejeita senha errada pra usuário existente", async () => {

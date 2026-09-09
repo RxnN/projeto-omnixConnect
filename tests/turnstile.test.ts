@@ -6,6 +6,7 @@ const ORIGINAL_SECRET = process.env.TURNSTILE_SECRET_KEY;
 afterEach(() => {
   process.env.TURNSTILE_SECRET_KEY = ORIGINAL_SECRET;
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("verifyTurnstile", () => {
@@ -45,5 +46,12 @@ describe("verifyTurnstile", () => {
     delete process.env.TURNSTILE_SECRET_KEY;
 
     await expect(verifyTurnstile("token")).rejects.toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("rejeita a chave que sempre aprova quando o ambiente é produção", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
+
+    await expect(verifyTurnstile("token")).rejects.toThrow(/teste.*produção/i);
   });
 });

@@ -7,6 +7,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withErrorHandling } from "@/lib/api-handler";
 import { loginSchema, firstZodError } from "@/lib/validation";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { runWithDatabaseContext } from "@/lib/prisma";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -41,7 +42,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     );
   }
 
-  const user = await getUserByEmail(email);
+  const user = await runWithDatabaseContext("login", email, () => getUserByEmail(email));
   const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !valid) {
     // Sem e-mail nos atributos — a métrica é só pra acompanhar volume/tendência de
@@ -50,7 +51,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
   }
 
-  const empresa = await getEmpresaById(user.empresaId);
+  if (!user.emailVerifiedAt) {
+    return NextResponse.json(
+      { error: "Confirme seu e-mail antes de entrar. Use o link enviado no cadastro." },
+      { status: 403 },
+    );
+  }
+
+  const empresa = await runWithDatabaseContext("tenant", user.empresaId, () => getEmpresaById(user.empresaId));
 
   const session = await getSession();
   session.user = {

@@ -23,6 +23,7 @@ export async function listUsersByEmpresa(empresaId: string): Promise<User[]> {
 function mapUser(user: Prisma.UserGetPayload<object>): User {
   return {
     ...user,
+    emailVerifiedAt: user.emailVerifiedAt ? toIso(user.emailVerifiedAt) : null,
     role: user.role as Role,
     permissions: normalizePermissionOverrides(user.permissions),
     createdAt: toIso(user.createdAt),
@@ -56,6 +57,7 @@ export async function createUser(input: {
       name: input.name,
       phone: input.phone,
       email: input.email,
+      emailVerifiedAt: new Date(),
       passwordHash: input.passwordHash,
       role: input.role,
     },

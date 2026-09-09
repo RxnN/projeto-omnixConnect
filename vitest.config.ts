@@ -15,5 +15,7 @@ export default defineConfig({
     // Testes de integração tocam o Postgres real (Neon); evita corrida entre
     // arquivos de teste rodando em paralelo contra o mesmo banco.
     fileParallelism: false,
+    testTimeout: 20_000,
+    hookTimeout: 60_000,
   },
 });

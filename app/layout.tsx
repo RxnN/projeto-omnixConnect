@@ -7,6 +7,8 @@ import { getEffectivePermissions, getSubscriptionStatus } from "@/lib/auth";
 import type { EffectivePermissions } from "@/lib/types";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import AppShell from "@/components/AppShell";
+import { headers } from "next/headers";
+import { enterTenantDatabaseContext } from "@/lib/prisma";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -44,6 +46,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
+  if (user) enterTenantDatabaseContext(user.empresaId);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   // O layout raiz nunca pode deixar de renderizar a barra lateral (é onde fica o botão
   // "Sair") — se a sessão estiver inválida (ex: empresa apagada) ou o banco estiver
@@ -69,7 +73,7 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR" className={`${manrope.variable} ${plexMono.variable}`}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         <AppShell

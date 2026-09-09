@@ -2,7 +2,7 @@
 // aumenta o limite de filiais da empresa em 1 (pra não bloquear o próprio contador).
 // Uso: npx tsx scripts/approve-filial.ts <filialId>
 
-import { prisma } from "../lib/prisma";
+import { adminPrisma as prisma } from "../lib/admin-prisma";
 
 async function main() {
   const [filialId] = process.argv.slice(2);

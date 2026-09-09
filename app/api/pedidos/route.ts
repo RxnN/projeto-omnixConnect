@@ -14,6 +14,7 @@ import { pedidoCreateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { getEffectivePrice } from "@/lib/pricing";
 import { getEffectivePermissions, requireApiUser } from "@/lib/auth";
+import { redactPedidoValues } from "@/lib/financial-data";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireApiUser();
@@ -120,5 +121,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   Sentry.metrics.count("pedido_closed", 1, { attributes: { type: pedido.type } });
 
-  return NextResponse.json({ ok: true, pedido });
+  const canViewReturnedValues = type === "OUT" ? permissions.VIEW_REPORTS : permissions.VIEW_COSTS_MARGIN;
+  return NextResponse.json({ ok: true, pedido: canViewReturnedValues ? pedido : redactPedidoValues(pedido) });
 });

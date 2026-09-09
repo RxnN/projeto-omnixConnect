@@ -1,6 +1,7 @@
 import { ApiError } from "./api-handler";
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const ALWAYS_PASS_TEST_SECRET = "1x0000000000000000000000000000000AA";
 
 interface TurnstileVerifyResponse {
   success: boolean;
@@ -17,6 +18,9 @@ export async function verifyTurnstile(token: string, remoteIp?: string): Promise
     throw new Error(
       "TURNSTILE_SECRET_KEY não configurado. Defina a chave secreta do Cloudflare Turnstile em .env."
     );
+  }
+  if (process.env.NODE_ENV === "production" && secret === ALWAYS_PASS_TEST_SECRET) {
+    throw new Error("A chave de teste do Turnstile não pode ser usada em produção.");
   }
 
   const body = new URLSearchParams({ secret, response: token });

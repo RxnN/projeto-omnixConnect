@@ -8,10 +8,16 @@ export default function MovimentacoesToggle({
   saidas,
   entradas,
   canManage = false,
+  canForceStock = false,
+  canViewSaleValues = false,
+  canViewEntryValues = false,
 }: {
   saidas: PedidoWithItems[];
   entradas: PedidoWithItems[];
   canManage?: boolean;
+  canForceStock?: boolean;
+  canViewSaleValues?: boolean;
+  canViewEntryValues?: boolean;
 }) {
   const [tab, setTab] = useState<"OUT" | "IN">("OUT");
 
@@ -30,7 +36,12 @@ export default function MovimentacoesToggle({
         </button>
       </div>
 
-      <HistoricoPedidos pedidos={tab === "OUT" ? saidas : entradas} canManage={canManage} />
+      <HistoricoPedidos
+        pedidos={tab === "OUT" ? saidas : entradas}
+        canManage={canManage}
+        canForceStock={canForceStock}
+        showValues={tab === "OUT" ? canViewSaleValues : canViewEntryValues}
+      />
     </div>
   );
 }

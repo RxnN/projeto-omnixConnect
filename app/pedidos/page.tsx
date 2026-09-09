@@ -4,6 +4,7 @@ import { getCurrentFilialId } from "@/lib/filial-context";
 import PedidoForm from "@/components/PedidoForm";
 import HistoricoPedidos from "@/components/HistoricoPedidos";
 import PageHeader from "@/components/PageHeader";
+import { redactPedidosValues } from "@/lib/financial-data";
 
 export default async function PedidosPage() {
   const user = await requireUser();
@@ -15,6 +16,7 @@ export default async function PedidosPage() {
     listPromotionsByFilial(filialId),
   ]);
   const orderProducts = products.map(({ costPrice: _costPrice, ...product }) => product);
+  const visiblePedidos = permissions.VIEW_REPORTS ? pedidos : redactPedidosValues(pedidos);
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Operação de venda" title="Pedidos" description="Busque os produtos, adicione ao pedido e feche a venda." />
@@ -27,7 +29,12 @@ export default async function PedidosPage() {
       />
       <section className="space-y-4 pt-6 border-t" style={{ borderColor: "var(--border)" }}>
         <div className="section-heading"><h2>Últimos pedidos</h2></div>
-        <HistoricoPedidos pedidos={pedidos} canManage={permissions.CANCEL_ORDERS} />
+        <HistoricoPedidos
+          pedidos={visiblePedidos}
+          canManage={permissions.CANCEL_ORDERS}
+          canForceStock={permissions.FORCE_STOCK}
+          showValues={permissions.VIEW_REPORTS}
+        />
       </section>
     </div>
   );

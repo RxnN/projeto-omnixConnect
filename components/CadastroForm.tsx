@@ -21,8 +21,8 @@ export default function CadastroForm() {
     setError(null);
     setLoading(true);
 
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+    if (password.length < 10) {
+      setError("A senha deve ter pelo menos 10 caracteres.");
       setLoading(false);
       return;
     }
@@ -48,7 +48,7 @@ export default function CadastroForm() {
 
       // Navegação completa — mesmo motivo do LoginForm: evita reaproveitar cache de rota
       // de uma sessão anterior (ex: testar como funcionário logo depois de estar como dono).
-      window.location.href = "/inicio";
+      window.location.href = "/cadastro-recebido";
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
@@ -71,6 +71,7 @@ export default function CadastroForm() {
           value={empresaName}
           onChange={(e) => setEmpresaName(e.target.value)}
           placeholder="Ex: Empresa Exemplo Ltda"
+          maxLength={200}
         />
       </div>
 
@@ -86,6 +87,7 @@ export default function CadastroForm() {
           value={cnpjCpf}
           onChange={(e) => setCnpjCpf(e.target.value)}
           placeholder="Só números"
+          maxLength={32}
         />
       </div>
 
@@ -101,6 +103,7 @@ export default function CadastroForm() {
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
           placeholder="Ex: João Silva"
+          maxLength={200}
         />
       </div>
 
@@ -116,6 +119,7 @@ export default function CadastroForm() {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Ex: (11) 91234-5678"
+          maxLength={32}
         />
       </div>
 
@@ -131,6 +135,7 @@ export default function CadastroForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="dono@suaempresa.com"
+          maxLength={254}
         />
       </div>
 
@@ -145,7 +150,9 @@ export default function CadastroForm() {
           className="input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Mínimo de 6 caracteres"
+          placeholder="Mínimo de 10 caracteres"
+          minLength={10}
+          maxLength={128}
         />
       </div>
 

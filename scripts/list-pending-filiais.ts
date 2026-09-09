@@ -1,7 +1,7 @@
 // Lista todas as filiais extras solicitadas e ainda pendentes de aprovação, de todas
 // as empresas. Uso: npx tsx scripts/list-pending-filiais.ts
 
-import { prisma } from "../lib/prisma";
+import { adminPrisma as prisma } from "../lib/admin-prisma";
 
 async function main() {
   const pendentes = await prisma.filial.findMany({

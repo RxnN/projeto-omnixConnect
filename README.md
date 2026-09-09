@@ -6,59 +6,44 @@ movimentações, totalmente isolados dos dados de outras empresas.
 
 ## Stack técnica
 
-- **Next.js 14** (App Router) + **TypeScript**
+- **Next.js 15** (App Router) + **TypeScript**
 - **Tailwind CSS** para estilização
-- **Camada de dados**: modelo documentado em `prisma/schema.prisma` (Prisma + SQLite), mas
-  implementado em runtime com o módulo nativo **`node:sqlite`** do Node.js — veja a seção
-  "Nota técnica" abaixo para o motivo dessa decisão.
-- **Autenticação**: sessão via cookie assinado e criptografado (`iron-session`), com senhas
-  com hash `bcryptjs`. Sem NextAuth, implementação enxuta e própria.
-- **QR Code**: geração com o pacote `qrcode` (cada produto tem um QR Code único que codifica
-  seu ID) e leitura via câmera com `html5-qrcode` na tela de Movimentação (saída).
-
-### Nota técnica: por que `node:sqlite` em vez do Prisma Client em runtime?
-
-O modelo de dados foi desenhado e está **100% documentado em `prisma/schema.prisma`**,
-seguindo exatamente a estrutura pedida (Empresa, User, Product, Movement, enums, relações,
-índices). Em um ambiente com acesso normal à internet, esse schema funciona diretamente com
-`npx prisma migrate dev` e `@prisma/client`.
-
-Porém, o ambiente sandbox usado para construir este protótipo bloqueia por política de rede o
-host `binaries.prisma.sh`, de onde o Prisma **precisa baixar seu engine nativo** — isso afeta
-até o comando `prisma generate`, não apenas `migrate`. Como não há alternativa (não existem
-binários pré-compilados publicados no npm, e a compilação nativa de alternativas como
-`better-sqlite3` também depende de downloads bloqueados), a camada de acesso a dados
-(`lib/db.ts` e `lib/repo.ts`) foi implementada com o módulo **nativo e embutido no Node.js
-22.5+** `node:sqlite` (`DatabaseSync`), que não exige nenhum download nem compilação nativa.
-
-As tabelas criadas por `lib/db.ts` espelham **exatamente** o schema do Prisma. Se você rodar
-este projeto em um ambiente sem essa restrição de rede, pode voltar a usar
-`npx prisma migrate dev` e `@prisma/client` normalmente — o schema já está pronto para isso.
+- **Banco de dados**: PostgreSQL/Neon acessado pelo Prisma
+- **Autenticação**: sessão criptografada com `iron-session` e senhas com hash `bcryptjs`
+- **Proteção multi-tenant**: filtros na aplicação e políticas PostgreSQL RLS com contexto assinado
+- **Confirmação de e-mail**: links de uso único enviados pela API da Resend
 
 ## Instalação e execução
 
-Pré-requisito: **Node.js 22.5 ou superior** (necessário para o módulo `node:sqlite`).
+Pré-requisito: **Node.js 22.5 ou superior**.
+
+Copie `.env.example` para `.env` e configure as variáveis. Use duas conexões diferentes:
+
+- `DATABASE_URL`: usuário restrito usado pelo site em execução.
+- `DATABASE_ADMIN_URL`: proprietário do schema, mantido apenas no computador administrativo para migrações, seed e scripts. Nunca configure essa variável na Vercel.
 
 ```bash
 npm install
-npm run db:seed     # cria o banco SQLite e popula com dados de demonstração
-npm run dev          # inicia o servidor de desenvolvimento em http://localhost:3000
+npm run db:migrate:admin
+npm run db:seed
+npm run dev
 ```
 
-Para build de produção:
+Também configure `SESSION_SECRET`, `RLS_CONTEXT_SECRET`, as chaves reais do Turnstile,
+`APP_ORIGIN`, `RESEND_API_KEY` e `EMAIL_FROM`. Segredos reais permanecem somente no `.env`
+ignorado e nas variáveis protegidas da hospedagem.
+
+Para ativar RLS com segurança, publique primeiro o código compatível e as variáveis. Em seguida,
+no computador que possui `DATABASE_ADMIN_URL`, execute:
 
 ```bash
-npm run build
-npm start
+npm run db:rls:activate
 ```
 
-O banco de dados é um arquivo local em `prisma/dev.db` (criado automaticamente na primeira
-execução ou pelo script de seed). Para recomeçar do zero, rode `npm run db:seed` novamente —
-ele apaga e recria todos os dados.
+Se for necessário reverter imediatamente a ativação, use `npm run db:rls:disable`.
+## Usuários de demonstração
 
-## Credenciais de demonstração
-
-Todos os usuários abaixo pertencem à empresa **"Empresa Exemplo"** e usam a senha `senha123`.
+Todos os usuários abaixo pertencem à empresa **"Empresa Exemplo"**. A senha é definida localmente pela variável ignorada `DEMO_PASSWORD` e não fica registrada no repositório.
 
 | E-mail                  | Papel        | O que enxerga |
 |--------------------------|--------------|---------------|

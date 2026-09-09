@@ -11,11 +11,11 @@ const optionalInt = z.preprocess(
 const packageTypeSchema = z.enum(["CX", "PCT"]).nullable().catch(null);
 
 const produtoBase = {
-  name: z.string().trim().min(1, "Informe o nome do produto."),
-  category: z.string().trim().min(1, "Informe a categoria."),
-  unit: z.string().trim().min(1, "Informe a unidade."),
-  costPrice: z.coerce.number().min(0, "Preço de custo inválido."),
-  salePrice: z.coerce.number().min(0, "Preço de venda inválido."),
+  name: z.string().trim().min(1, "Informe o nome do produto.").max(200, "Nome do produto muito longo."),
+  category: z.string().trim().min(1, "Informe a categoria.").max(100, "Categoria muito longa."),
+  unit: z.string().trim().min(1, "Informe a unidade.").max(20, "Unidade muito longa."),
+  costPrice: z.coerce.number().min(0, "Preço de custo inválido.").max(9_999_999_999.99, "Preço de custo inválido."),
+  salePrice: z.coerce.number().min(0, "Preço de venda inválido.").max(9_999_999_999.99, "Preço de venda inválido."),
   minStockAlert: optionalInt,
   packageType: packageTypeSchema,
   unitsPerPackage: optionalInt,
@@ -54,6 +54,7 @@ function hasValidCheckDigits(value: string): boolean {
 const cnpjCpfSchema = z
   .string()
   .trim()
+  .max(32, "CPF ou CNPJ muito longo.")
   .transform((v) => v.replace(/\D/g, ""))
   .refine(
     (v) => (v.length === 11 || v.length === 14) && hasValidCheckDigits(v),
@@ -63,21 +64,23 @@ const cnpjCpfSchema = z
 const phoneSchema = z
   .string()
   .trim()
+  .max(32, "Telefone muito longo.")
   .transform((v) => v.replace(/\D/g, ""))
   .refine((v) => v.length === 10 || v.length === 11, "Informe um telefone válido, com DDD.");
 
 export const cadastroSchema = z.object({
-  empresaName: z.string().trim().min(1, "Informe o nome da empresa."),
+  empresaName: z.string().trim().min(1, "Informe o nome da empresa.").max(200, "Nome da empresa muito longo."),
   cnpjCpf: cnpjCpfSchema,
-  userName: z.string().trim().min(1, "Informe seu nome."),
+  userName: z.string().trim().min(1, "Informe seu nome.").max(200, "Nome muito longo."),
   phone: phoneSchema,
-  email: z.string().trim().min(1, "Informe seu e-mail.").email("E-mail inválido.").toLowerCase(),
+  email: z.string().trim().min(1, "Informe seu e-mail.").max(254, "E-mail muito longo.").email("E-mail inválido.").toLowerCase(),
   password: z
     .string()
     .min(10, "A senha deve ter pelo menos 10 caracteres.")
+    .max(128, "A senha deve ter no máximo 128 caracteres.")
     .regex(/[A-Za-zÀ-ÿ]/, "A senha deve conter ao menos uma letra.")
     .regex(/\d/, "A senha deve conter ao menos um número."),
-  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página."),
+  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página.").max(4096, "Verificação de segurança inválida."),
 });
 
 const optionalDate = z.preprocess(
@@ -87,7 +90,7 @@ const optionalDate = z.preprocess(
 
 export const promotionCreateSchema = z
   .object({
-    productId: z.string().trim().min(1, "Selecione um produto."),
+    productId: z.string().trim().min(1, "Selecione um produto.").max(128, "Produto inválido."),
     promoPrice: z.coerce.number().min(0, "Preço promocional inválido."),
     startDate: optionalDate,
     endDate: optionalDate,
@@ -103,13 +106,22 @@ export const promotionCreateSchema = z
   });
 
 export const loginSchema = z.object({
-  email: z.string().trim().min(1, "Informe e-mail e senha.").toLowerCase(),
-  password: z.string().min(1, "Informe e-mail e senha."),
-  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página."),
+  email: z.string().trim().min(1, "Informe e-mail e senha.").max(254, "Informe e-mail e senha.").email("Informe e-mail e senha.").toLowerCase(),
+  password: z.string().min(1, "Informe e-mail e senha.").max(128, "Informe e-mail e senha."),
+  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página.").max(4096, "Verificação de segurança inválida."),
+});
+
+export const emailVerificationSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(40, "Link de confirmação inválido.")
+    .max(128, "Link de confirmação inválido.")
+    .regex(/^[A-Za-z0-9_-]+$/, "Link de confirmação inválido."),
 });
 
 const pedidoItemSchema = z.object({
-  productId: z.string().trim().min(1, "Item do pedido sem produto selecionado."),
+  productId: z.string().trim().min(1, "Item do pedido sem produto selecionado.").max(128, "Produto inválido."),
   quantity: z.coerce
     .number()
     .int("A quantidade deve ser um número inteiro maior que zero.")
@@ -126,7 +138,7 @@ const PAYMENT_METHODS_BY_TYPE: Record<"IN" | "OUT", string[]> = {
 export const pedidoCreateSchema = z
   .object({
     type: z.enum(["IN", "OUT"], { message: "Tipo de pedido inválido." }),
-    items: z.array(pedidoItemSchema).min(1, "Adicione ao menos um produto ao pedido."),
+    items: z.array(pedidoItemSchema).min(1, "Adicione ao menos um produto ao pedido.").max(200, "O pedido excede o limite de 200 itens."),
     force: z.coerce.boolean().optional().default(false),
     paymentMethod: z.enum(["DINHEIRO", "PIX", "CARTAO", "FIADO", "BOLETO"], {
       message: "Selecione a forma de pagamento.",

@@ -16,9 +16,13 @@ interface CancelBlocker {
 export default function HistoricoPedidos({
   pedidos,
   canManage = false,
+  canForceStock = false,
+  showValues = false,
 }: {
   pedidos: PedidoWithItems[];
   canManage?: boolean;
+  canForceStock?: boolean;
+  showValues?: boolean;
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -89,7 +93,7 @@ export default function HistoricoPedidos({
             <th className="text-left px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Pedido</th>
             <th className="text-left px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Data</th>
             <th className="text-left px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Itens</th>
-            <th className="text-right px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Total</th>
+            {showValues && <th className="text-right px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Total</th>}
             <th className="text-left px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Pagamento</th>
             <th className="text-left px-5 py-3.5 font-semibold uppercase text-xs tracking-wide">Usuário</th>
             {canManage && <th className="px-5 py-3.5"></th>}
@@ -120,12 +124,14 @@ export default function HistoricoPedidos({
                   <td className="px-5 py-3.5" style={{ color: "var(--ink-soft)" }}>
                     {pedido.items.length} produto(s) · {qtdItens} un.
                   </td>
-                  <td
-                    className="px-5 py-3.5 text-right font-medium tabular"
-                    style={isCancelled ? { textDecoration: "line-through" } : undefined}
-                  >
-                    {formatBRL(pedido.totalValue)}
-                  </td>
+                  {showValues && (
+                    <td
+                      className="px-5 py-3.5 text-right font-medium tabular"
+                      style={isCancelled ? { textDecoration: "line-through" } : undefined}
+                    >
+                      {formatBRL(pedido.totalValue)}
+                    </td>
+                  )}
                   <td className="px-5 py-3.5 text-xs" style={{ color: "var(--ink-soft)" }}>
                     {formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}
                   </td>
@@ -154,7 +160,7 @@ export default function HistoricoPedidos({
                 {isOpen && (
                   <tr>
                     <td></td>
-                    <td colSpan={canManage ? 7 : 6} className="px-5 pb-4">
+                    <td colSpan={(canManage ? 6 : 5) + (showValues ? 1 : 0)} className="px-5 pb-4">
                       {isCancelled && (
                         <p className="text-xs mb-2.5" style={{ color: "var(--danger)" }}>
                           Cancelado em {formatDateTime(pedido.cancelledAt as string)} por {pedido.cancelledByName}.
@@ -165,8 +171,8 @@ export default function HistoricoPedidos({
                           <tr>
                             <th className="text-left px-4 py-2">Produto</th>
                             <th className="text-right px-4 py-2">Qtde</th>
-                            <th className="text-right px-4 py-2">Valor unit.</th>
-                            <th className="text-right px-4 py-2">Subtotal</th>
+                            {showValues && <th className="text-right px-4 py-2">Valor unit.</th>}
+                            {showValues && <th className="text-right px-4 py-2">Subtotal</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -176,8 +182,8 @@ export default function HistoricoPedidos({
                               <td className="px-4 py-2 text-right tabular">
                                 {item.quantity} {item.productUnit}
                               </td>
-                              <td className="px-4 py-2 text-right tabular">{formatBRL(item.unitValue)}</td>
-                              <td className="px-4 py-2 text-right font-medium tabular">{formatBRL(item.totalValue)}</td>
+                              {showValues && <td className="px-4 py-2 text-right tabular">{formatBRL(item.unitValue)}</td>}
+                              {showValues && <td className="px-4 py-2 text-right font-medium tabular">{formatBRL(item.totalValue)}</td>}
                             </tr>
                           ))}
                         </tbody>
@@ -187,7 +193,7 @@ export default function HistoricoPedidos({
                           {error}
                         </p>
                       )}
-                      {warning && (
+                      {warning && canForceStock && (
                         <div className="rounded-lg p-3 mt-2.5 space-y-1.5" style={{ backgroundColor: "var(--warn-soft)" }}>
                           <p className="text-xs" style={{ color: "var(--warn)" }}>
                             {warning.message}
@@ -225,11 +231,11 @@ export default function HistoricoPedidos({
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
                 <div><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Itens</p><p className="font-medium mt-1">{pedido.items.length} produtos · {qtdItens} un.</p></div>
-                <div className="text-right"><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Total</p><p className="font-semibold tabular mt-1">{formatBRL(pedido.totalValue)}</p></div>
+                {showValues && <div className="text-right"><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Total</p><p className="font-semibold tabular mt-1">{formatBRL(pedido.totalValue)}</p></div>}
               </div>
             </button>
             {isOpen && <div className="space-y-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-              {pedido.items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm"><span>{item.productName}<small className="block" style={{ color: "var(--ink-soft)" }}>{item.quantity} {item.productUnit}</small></span><strong className="tabular">{formatBRL(item.totalValue)}</strong></div>)}
+              {pedido.items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm"><span>{item.productName}<small className="block" style={{ color: "var(--ink-soft)" }}>{item.quantity} {item.productUnit}</small></span>{showValues && <strong className="tabular">{formatBRL(item.totalValue)}</strong>}</div>)}
             </div>}
             <div className="mobile-record-footer"><span className="text-xs" style={{ color: "var(--ink-soft)" }}>{formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}</span>{canManage && !isCancelled && <button type="button" className="text-xs font-semibold" style={{ color: "var(--danger)" }} onClick={() => handleCancel(pedido.id)} disabled={cancelling === pedido.id}>Cancelar</button>}</div>
           </article>

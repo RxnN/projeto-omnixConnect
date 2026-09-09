@@ -46,6 +46,7 @@ describe("getAccessState", () => {
       name: sessionUser.name,
       phone: null,
       email: sessionUser.email,
+      emailVerifiedAt: new Date().toISOString(),
       passwordHash: "hash",
       role: "OWNER",
       permissions: null,

@@ -4,7 +4,7 @@ import { createPendingFilial, listFiliais } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { hasPermission, requireApiUser } from "@/lib/auth";
 
-const filialSchema = z.object({ name: z.string().trim().min(1, "Informe o nome da filial.") });
+const filialSchema = z.object({ name: z.string().trim().min(1, "Informe o nome da filial.").max(200, "Nome da filial muito longo.") });
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireApiUser();

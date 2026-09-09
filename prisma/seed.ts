@@ -7,10 +7,18 @@
 
 import bcrypt from "bcryptjs";
 import type { PaymentMethod } from "@prisma/client";
-import { prisma } from "../lib/prisma";
+import { adminPrisma as prisma } from "../lib/admin-prisma";
 import { createId } from "../lib/id";
 
 const DEMO_OWNER_EMAIL = "dono@empresaexemplo.com";
+
+function demoPassword(): string {
+  const password = process.env.DEMO_PASSWORD;
+  if (!password || password.length < 16) {
+    throw new Error("Defina DEMO_PASSWORD com pelo menos 16 caracteres antes de executar o seed.");
+  }
+  return password;
+}
 
 function daysAgo(n: number, hour = 10): Date {
   const d = new Date();
@@ -58,7 +66,7 @@ async function main() {
   });
 
   console.log("Criando usuários...");
-  const passwordHash = await bcrypt.hash("senha123", 10);
+  const passwordHash = await bcrypt.hash(demoPassword(), 12);
 
   async function insertUser(
     name: string,
@@ -67,7 +75,16 @@ async function main() {
     filialId: string | null
   ) {
     const user = await prisma.user.create({
-      data: { id: createId("user"), empresaId: empresa.id, filialId, name, email, passwordHash, role },
+      data: {
+        id: createId("user"),
+        empresaId: empresa.id,
+        filialId,
+        name,
+        email,
+        emailVerifiedAt: new Date(),
+        passwordHash,
+        role,
+      },
     });
     return user.id;
   }

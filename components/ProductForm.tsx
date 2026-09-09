@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PackageType, Product } from "@/lib/types";
 
+type EditableProduct = Omit<Product, "costPrice"> & { costPrice?: number };
+
 const CATEGORIAS_SUGERIDAS = [
   "Vinho Tinto",
   "Vinho Branco",
@@ -18,7 +20,13 @@ const CATEGORIAS_SUGERIDAS = [
 
 const UNIDADES_POR_EMBALAGEM_SUGERIDAS = ["6", "12", "24"];
 
-export default function ProductForm({ product }: { product?: Product }) {
+export default function ProductForm({
+  product,
+  canViewCosts,
+}: {
+  product?: EditableProduct;
+  canViewCosts: boolean;
+}) {
   const router = useRouter();
   const isEdit = Boolean(product);
 
@@ -54,17 +62,17 @@ export default function ProductForm({ product }: { product?: Product }) {
 
     setLoading(true);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name,
       category,
       unit,
-      costPrice: Number(costPrice),
       salePrice: Number(salePrice),
       currentStock: currentStock === "" ? 0 : Number(currentStock),
       minStockAlert: minStockAlert === "" ? null : Number(minStockAlert),
       packageType: packageType === "" ? null : packageType,
       unitsPerPackage: packageType === "" || unitsPerPackage === "" ? null : Number(unitsPerPackage),
     };
+    if (canViewCosts) payload.costPrice = Number(costPrice);
 
     try {
       const res = await fetch(isEdit ? `/api/produtos/${product!.id}` : "/api/produtos", {
@@ -122,18 +130,20 @@ export default function ProductForm({ product }: { product?: Product }) {
         <input required className="input" value={unit} onChange={(e) => setUnit(e.target.value)} />
       </div>
 
-      <div>
-        <label className="label">Preço de custo (R$)</label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          required
-          className="input"
-          value={costPrice}
-          onChange={(e) => setCostPrice(e.target.value)}
-        />
-      </div>
+      {canViewCosts && (
+        <div>
+          <label className="label">Preço de custo (R$)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            required
+            className="input"
+            value={costPrice}
+            onChange={(e) => setCostPrice(e.target.value)}
+          />
+        </div>
+      )}
 
       <div>
         <label className="label">Preço de venda (R$)</label>

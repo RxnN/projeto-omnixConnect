@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { getEffectivePermissions, requireUser } from "@/lib/auth";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { formatBRL, formatDateTime } from "@/lib/format";
 import { getFilialById, listPedidos, listProducts } from "@/lib/repo";
@@ -34,6 +34,7 @@ const QUICK_ACTIONS = [
 
 export default async function InicioPage() {
   const user = await requireUser();
+  const permissions = await getEffectivePermissions(user);
   const filialId = await getCurrentFilialId(user);
   const from = new Date();
   from.setHours(0, 0, 0, 0);
@@ -69,13 +70,13 @@ export default async function InicioPage() {
       <section className="dashboard-kpi-grid" aria-label="Resumo de hoje">
         <article className="dashboard-kpi-card dashboard-kpi-primary">
           <span>Vendas de hoje</span>
-          <strong>{formatBRL(faturamentoHoje)}</strong>
-          <small>{vendasHoje.length} {vendasHoje.length === 1 ? "pedido concluído" : "pedidos concluídos"}</small>
+          <strong>{permissions.VIEW_REPORTS ? formatBRL(faturamentoHoje) : vendasHoje.length}</strong>
+          <small>{permissions.VIEW_REPORTS ? `${vendasHoje.length} ${vendasHoje.length === 1 ? "pedido concluído" : "pedidos concluídos"}` : "pedidos concluídos hoje"}</small>
         </article>
         <article className="dashboard-kpi-card">
           <span>Entradas de hoje</span>
-          <strong>{formatBRL(valorEntradasHoje)}</strong>
-          <small>{entradasHoje.length} {entradasHoje.length === 1 ? "entrada registrada" : "entradas registradas"}</small>
+          <strong>{permissions.VIEW_COSTS_MARGIN ? formatBRL(valorEntradasHoje) : entradasHoje.length}</strong>
+          <small>{permissions.VIEW_COSTS_MARGIN ? `${entradasHoje.length} ${entradasHoje.length === 1 ? "entrada registrada" : "entradas registradas"}` : "entradas registradas hoje"}</small>
         </article>
         <article className="dashboard-kpi-card">
           <span>Produtos ativos</span>
@@ -136,7 +137,8 @@ export default async function InicioPage() {
                     <small>{pedido.items.length} {pedido.items.length === 1 ? "item" : "itens"} · {formatDateTime(pedido.createdAt)}</small>
                   </div>
                   <div className="dashboard-activity-value">
-                    <strong>{formatBRL(pedido.totalValue)}</strong>
+                    {((pedido.type === "OUT" && permissions.VIEW_REPORTS) ||
+                      (pedido.type === "IN" && permissions.VIEW_COSTS_MARGIN)) && <strong>{formatBRL(pedido.totalValue)}</strong>}
                     {pedido.cancelledAt && <small>Cancelado</small>}
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { createUser } from "@/lib/repo";
+import { createUser, updateUserPermissions } from "@/lib/repo";
+import { prisma } from "@/lib/prisma";
 import { seedFixture } from "./helpers";
 
 vi.mock("@/lib/session", () => ({
@@ -173,5 +174,28 @@ describe("POST /api/produtos", () => {
     expect(json.product.code).toBe("0001");
     expect(json.product.costPrice).toBe(10.5);
     expect(json.product.salePrice).toBe(19.9);
+  });
+
+  it("não aceita nem devolve custo para gestor sem VIEW_COSTS_MARGIN", async () => {
+    const { empresa, filial } = await seedFixture();
+    const employee = await createUser({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      name: "Gestor de catálogo",
+      email: `catalog-${Date.now()}@teste.com`,
+      passwordHash: "x",
+      role: "EMPLOYEE",
+    });
+    await updateUserPermissions(employee.id, empresa.id, { MANAGE_PRODUCTS: true, VIEW_COSTS_MARGIN: false });
+    await loginAs(empresa.id, filial.id, empresa.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+
+    const res = await POST(
+      makeRequest({ name: "Sem custo", category: "C", unit: "un", costPrice: 999, salePrice: 20, currentStock: 0 })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.product.costPrice).toBeUndefined();
+    expect((await prisma.product.findUnique({ where: { id: json.product.id } }))?.costPrice.toNumber()).toBe(0);
   });
 });

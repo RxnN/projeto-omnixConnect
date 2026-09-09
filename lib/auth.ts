@@ -4,6 +4,7 @@ import { getEmpresaById, getUserById } from "./repo";
 import { resolvePermissions } from "./permissions";
 import type { EffectivePermissions, Empresa, PermissionKey, Role } from "./types";
 import { ApiError } from "./api-handler";
+import { enterTenantDatabaseContext } from "./prisma";
 
 const EXPIRING_SOON_DAYS = 5;
 
@@ -29,6 +30,7 @@ export type AccessState =
 export async function getAccessState(): Promise<AccessState> {
   const sessionUser = await getCurrentUser();
   if (!sessionUser) return { status: "UNAUTHENTICATED" };
+  enterTenantDatabaseContext(sessionUser.empresaId);
 
   const [current, empresa] = await Promise.all([
     getUserById(sessionUser.userId),

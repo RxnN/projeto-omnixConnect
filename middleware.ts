@@ -2,11 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, IDLE_TIMEOUT_MS, type SessionData } from "@/lib/session";
 
-/** Só cuida do cookie de sessão (renovar a atividade a cada requisição, ou limpar se
- * ficou ocioso demais) — nenhuma relação com CSP/headers de segurança, que continuam
- * definidos estaticamente em next.config.js. */
+/** Renova ou encerra a sessão ociosa e cria a política CSP com um nonce novo por
+ * requisição, compartilhado com o layout pelo cabeçalho interno x-nonce. */
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const isDev = process.env.NODE_ENV !== "production";
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    `connect-src 'self' https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io${isDev ? " ws:" : ""}`,
+    "frame-src 'self' https://challenges.cloudflare.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set("Content-Security-Policy", csp);
   const session = await getIronSession<{ user?: SessionData }>(req, res, sessionOptions);
 
   if (session.user) {

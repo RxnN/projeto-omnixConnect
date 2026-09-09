@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hasPermission, requireApiUser } from "@/lib/auth";
+import { getEffectivePermissions, requireApiUser } from "@/lib/auth";
 import { cancelPedido, checkPedidoCancelStock, getPedidoById, StockConflictError } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
@@ -7,7 +7,8 @@ import { getCurrentFilialId } from "@/lib/filial-context";
 export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async (req, { params }) => {
   const { id } = await params;
   const user = await requireApiUser();
-  if (!(await hasPermission(user, "CANCEL_ORDERS"))) {
+  const permissions = await getEffectivePermissions(user);
+  if (!permissions.CANCEL_ORDERS) {
     return NextResponse.json({ error: "Você não tem permissão para cancelar pedidos." }, { status: 403 });
   }
 
@@ -19,7 +20,10 @@ export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async
   }
 
   const body = await req.json().catch(() => ({}));
-  const force = Boolean(body?.force);
+  const force = body?.force === true;
+  if (force && !permissions.FORCE_STOCK) {
+    return NextResponse.json({ error: "Você não tem permissão para forçar estoque negativo." }, { status: 403 });
+  }
 
   if (!force) {
     const blockers = await checkPedidoCancelStock(pedido);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { createPedido, createPromotion, createUser, setProductActive } from "@/lib/repo";
+import { createPedido, createPromotion, createUser, setProductActive, updateUserPermissions } from "@/lib/repo";
 import { prisma } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
@@ -141,6 +141,35 @@ describe("POST /api/pedidos", () => {
 
     expect(res.status).toBe(200);
     expect(json.pedido.totalValue).toBe(30);
+  });
+
+  it("não devolve custo de entrada para usuário sem permissão financeira", async () => {
+    const { empresa, filial } = await seedFixture();
+    const product = await seedProduct(filial, { currentStock: 0, costPrice: 42 });
+    const employee = await createUser({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      name: "Funcionário",
+      email: `entry-cost-${Date.now()}@teste.com`,
+      passwordHash: "x",
+      role: "EMPLOYEE",
+    });
+    await loginAs(empresa.id, filial.id, empresa.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+
+    const res = await POST(
+      makeRequest({
+        type: "IN",
+        paymentMethod: "DINHEIRO",
+        items: [{ productId: product.id, quantity: 1 }],
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.pedido.totalValue).toBe(0);
+    expect(json.pedido.items[0].unitValue).toBe(0);
+    const storedItem = await prisma.movement.findFirst({ where: { pedidoId: json.pedido.id } });
+    expect(storedItem?.unitValue.toNumber()).toBe(42);
   });
 
   it("rejeita valor unitário negativo", async () => {
@@ -322,7 +351,9 @@ describe("POST /api/pedidos", () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.pedido.totalValue).toBe(30);
+    expect(json.pedido.totalValue).toBe(0);
+    const stored = await prisma.pedido.findUnique({ where: { id: json.pedido.id } });
+    expect(stored?.totalValue.toNumber()).toBe(30);
   });
 
   it("funcionário não pode vender abaixo do preço promocional vigente", async () => {
@@ -412,5 +443,49 @@ describe("POST /api/pedidos/[id]/cancel", () => {
     expect(res.status).toBe(404);
     const stillActive = await prisma.pedido.findUnique({ where: { id: foreignPedido.id } });
     expect(stillActive?.cancelledAt).toBeNull();
+  });
+
+  it("não permite cancelamento forçado sem a permissão FORCE_STOCK", async () => {
+    const { empresa, filial, user } = await seedFixture();
+    const product = await seedProduct(filial, { currentStock: 0 });
+    const entry = await createPedido({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      type: "IN",
+      createdByUserId: user.id,
+      paymentMethod: "DINHEIRO",
+      items: [{ productId: product.id, quantity: 10, unitValue: 10, source: "MANUAL" }],
+    });
+    await createPedido({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      type: "OUT",
+      createdByUserId: user.id,
+      paymentMethod: "DINHEIRO",
+      items: [{ productId: product.id, quantity: 8, unitValue: 20, source: "MANUAL" }],
+    });
+    const employee = await createUser({
+      empresaId: empresa.id,
+      filialId: filial.id,
+      name: "Cancelador",
+      email: `cancel-${Date.now()}@teste.com`,
+      passwordHash: "x",
+      role: "EMPLOYEE",
+    });
+    await updateUserPermissions(employee.id, empresa.id, { CANCEL_ORDERS: true, FORCE_STOCK: false });
+    await loginAs(empresa.id, filial.id, empresa.name, employee.id, employee.name, employee.email, "EMPLOYEE");
+
+    const res = await cancelPost(
+      new NextRequest("http://localhost/api/pedidos/x/cancel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ force: true }),
+      }),
+      { params: Promise.resolve({ id: entry.id }) }
+    );
+
+    expect(res.status).toBe(403);
+    expect((await prisma.pedido.findUnique({ where: { id: entry.id } }))?.cancelledAt).toBeNull();
+    expect((await prisma.product.findUnique({ where: { id: product.id } }))?.currentStock).toBe(2);
   });
 });

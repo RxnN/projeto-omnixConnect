@@ -56,6 +56,7 @@ export interface User {
   name: string;
   phone: string | null;
   email: string;
+  emailVerifiedAt: string | null;
   passwordHash: string;
   role: Role;
   permissions: PermissionOverrides | null;

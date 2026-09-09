@@ -15,9 +15,44 @@ export class ApiError extends Error {
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const NON_JSON_PATHS = new Set(["/api/logout", "/api/nfe-import", "/api/produtos/import"]);
 const MAX_JSON_BODY_SIZE = 1024 * 1024;
+const MAX_MULTIPART_BODY_SIZE = 5 * 1024 * 1024 + 128 * 1024;
 
-function validateRequestSource(req: NextRequest) {
-  if (!MUTATING_METHODS.has(req.method)) return;
+async function bufferBodyWithinLimit(req: NextRequest, maxBytes: number): Promise<NextRequest> {
+  const body = req.body;
+  if (!body) return req;
+  const reader = body.getReader();
+  let total = 0;
+  const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new ApiError(413, "Corpo da requisição muito grande.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new NextRequest(req.url, {
+    method: req.method,
+    headers: req.headers,
+    body: bytes,
+    signal: req.signal,
+  });
+}
+
+async function validateRequestSource(req: NextRequest): Promise<NextRequest> {
+  if (!MUTATING_METHODS.has(req.method)) return req;
 
   const fetchSite = req.headers.get("sec-fetch-site");
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
@@ -49,6 +84,12 @@ function validateRequestSource(req: NextRequest) {
   if (requiresJson && Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_SIZE) {
     throw new ApiError(413, "Corpo da requisição muito grande.");
   }
+  if (requiresJson) {
+    return bufferBodyWithinLimit(req, MAX_JSON_BODY_SIZE);
+  } else if (req.nextUrl.pathname === "/api/nfe-import" || req.nextUrl.pathname === "/api/produtos/import") {
+    return bufferBodyWithinLimit(req, MAX_MULTIPART_BODY_SIZE);
+  }
+  return req;
 }
 
 /** Envolve um handler de rota de API pra garantir que qualquer exceção não tratada
@@ -60,8 +101,8 @@ export function withErrorHandling<C = unknown>(
 ) {
   return async (req: NextRequest, context: C): Promise<NextResponse> => {
     try {
-      validateRequestSource(req);
-      return await handler(req, context);
+      const validatedReq = await validateRequestSource(req);
+      return await handler(validatedReq, context);
     } catch (error) {
       if (error instanceof ApiError) {
         return NextResponse.json({ error: error.message }, { status: error.status, headers: error.headers });

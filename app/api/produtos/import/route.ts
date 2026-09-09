@@ -6,6 +6,7 @@ import type { PackageType } from "@/lib/types";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { rateLimit } from "@/lib/rate-limit";
+import { assertSafeXlsxArchive, UnsafeZipError } from "@/lib/zip-safety";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ROWS = 5_000;
@@ -48,6 +49,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const buffer = Buffer.from(await file.arrayBuffer());
   if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
     return NextResponse.json({ error: "O arquivo não possui uma estrutura XLSX válida." }, { status: 400 });
+  }
+  try {
+    assertSafeXlsxArchive(buffer);
+  } catch (error) {
+    if (error instanceof UnsafeZipError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
   let workbook: XLSX.WorkBook;
   try {

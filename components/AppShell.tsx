@@ -9,7 +9,7 @@ import SubscriptionBanner from "./SubscriptionBanner";
 
 // Telas públicas (login, cadastro) nunca mostram o menu do app, mesmo que a sessão
 // do usuário ainda esteja presente numa navegação em trânsito (ex: logo após "Sair").
-const PUBLIC_ROUTES = ["/", "/cadastro"];
+const PUBLIC_ROUTES = ["/", "/cadastro", "/cadastro-recebido", "/verificar-email"];
 
 export default function AppShell({
   user,
