@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { alertSecurityEvent } from "./security-monitoring";
 
 export class ApiError extends Error {
   constructor(
@@ -56,6 +57,7 @@ async function validateRequestSource(req: NextRequest): Promise<NextRequest> {
 
   const fetchSite = req.headers.get("sec-fetch-site");
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    alertSecurityEvent("request_origin_rejected");
     throw new ApiError(403, "Origem da requisição não permitida.");
   }
 
@@ -70,6 +72,7 @@ async function validateRequestSource(req: NextRequest): Promise<NextRequest> {
       }
     }
     if (!allowedOrigins.has(origin)) {
+      alertSecurityEvent("request_origin_rejected");
       throw new ApiError(403, "Origem da requisição não permitida.");
     }
   }

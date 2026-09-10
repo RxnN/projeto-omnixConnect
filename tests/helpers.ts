@@ -11,7 +11,7 @@ let emailCounter = 0;
 let documentCounter = 0;
 
 function nextTestCnpj() {
-  const base = String(10_000_000_000 + documentCounter++).padStart(12, "0");
+  const base = `${String(Date.now()).slice(-9)}${String(documentCounter++ % 1000).padStart(3, "0")}`;
   const digit = (value: string, weights: number[]) => {
     const total = value.split("").reduce((sum, current, index) => sum + Number(current) * weights[index], 0);
     const remainder = total % 11;
@@ -29,6 +29,7 @@ afterAll(async () => {
       await prisma.pedido.deleteMany({ where: { empresaId } });
       await prisma.promotion.deleteMany({ where: { empresaId } });
       await prisma.product.deleteMany({ where: { empresaId } });
+      await prisma.registrationDocument.deleteMany({ where: { empresaId } });
       await prisma.counter.deleteMany({ where: { filial: { empresaId } } });
       await prisma.user.deleteMany({ where: { empresaId } });
       await prisma.filial.deleteMany({ where: { empresaId } });

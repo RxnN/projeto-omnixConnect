@@ -6,11 +6,13 @@ import { withErrorHandling } from "@/lib/api-handler";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
 import { recordAdminAudit } from "@/lib/admin-audit";
+import { alertSecurityEvent, countSecurityEvent } from "@/lib/security-monitoring";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireSuperAdminIdentityApi();
   const limit = await rateLimit(`admin-mfa-verify:${admin.email}:${clientIp(req)}`, 10, 10 * 60_000);
   if (!limit.allowed) {
+    alertSecurityEvent("admin_mfa_verify_limited");
     return NextResponse.json({ error: "Muitas tentativas. Aguarde alguns minutos." }, { status: 429 });
   }
 
@@ -32,6 +34,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: "Limite de tentativas atingido. Solicite um novo código." }, { status: 429 });
   }
   if (!verifyAdminMfaCode(code, challenge.codeHash)) {
+    countSecurityEvent("admin_mfa_invalid");
     session.adminMfa = { ...challenge, attempts: attempts + 1 };
     await session.save();
     return NextResponse.json({ error: "Código inválido." }, { status: 400 });

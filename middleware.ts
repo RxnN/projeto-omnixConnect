@@ -23,6 +23,10 @@ export async function middleware(req: NextRequest) {
     "upgrade-insecure-requests",
   ].join("; ");
   const requestHeaders = new Headers(req.headers);
+  // Nunca aceite contexto de banco enviado pelo navegador. Estes cabeçalhos são
+  // recriados abaixo somente a partir da sessão assinada do servidor.
+  requestHeaders.delete("x-database-context-kind");
+  requestHeaders.delete("x-database-context-value");
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
   const adminPath = getAdminPath();
@@ -44,11 +48,12 @@ export async function middleware(req: NextRequest) {
   const rewriteUrl = req.nextUrl.clone();
   if (isAdminEntry) rewriteUrl.pathname = "/admin";
   if (isAdminMfaEntry) rewriteUrl.pathname = "/admin-verificacao";
-  const res = isAdminEntry || isAdminMfaEntry
-    ? NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } })
-    : NextResponse.next({ request: { headers: requestHeaders } });
-  res.headers.set("Content-Security-Policy", csp);
-  const session = await getIronSession<{ user?: SessionData }>(req, res, sessionOptions);
+  // A continuação de um `await` não herda alterações feitas com
+  // AsyncLocalStorage.enterWith() dentro da função aguardada. Transportamos o
+  // contexto autenticado no request interno para que cada consulta Prisma possa
+  // reconstruí-lo de forma segura, inclusive depois de requireUser().
+  const sessionCookieResponse = NextResponse.next();
+  const session = await getIronSession<{ user?: SessionData }>(req, sessionCookieResponse, sessionOptions);
 
   if (session.user) {
     if (Date.now() - session.user.lastActivityAt > IDLE_TIMEOUT_MS) {
@@ -56,8 +61,30 @@ export async function middleware(req: NextRequest) {
     } else {
       session.user.lastActivityAt = Date.now();
       await session.save();
+
+      const configuredAdmins = new Set(
+        (process.env.SUPER_ADMIN_EMAILS ?? "")
+          .split(",")
+          .map((email) => email.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      const adminRequest = isAdminEntry || isAdminMfaEntry || req.nextUrl.pathname.startsWith("/api/admin/");
+      const sessionEmail = session.user.email.trim().toLowerCase();
+      if (adminRequest && configuredAdmins.has(sessionEmail)) {
+        requestHeaders.set("x-database-context-kind", "admin");
+        requestHeaders.set("x-database-context-value", sessionEmail);
+      } else {
+        requestHeaders.set("x-database-context-kind", "tenant");
+        requestHeaders.set("x-database-context-value", session.user.empresaId);
+      }
     }
   }
+
+  const res = isAdminEntry || isAdminMfaEntry
+    ? NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } })
+    : NextResponse.next({ request: { headers: requestHeaders } });
+  for (const cookie of sessionCookieResponse.cookies.getAll()) res.cookies.set(cookie);
+  res.headers.set("Content-Security-Policy", csp);
 
   return res;
 }

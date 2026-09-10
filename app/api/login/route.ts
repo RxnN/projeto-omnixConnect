@@ -10,6 +10,7 @@ import { verifyTurnstile } from "@/lib/turnstile";
 import { runWithDatabaseContext } from "@/lib/prisma";
 import { isSuperAdminEmail } from "@/lib/admin-access";
 import { getAdminPath } from "@/lib/admin-path";
+import { alertSecurityEvent } from "@/lib/security-monitoring";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -21,6 +22,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // o limite por e-mail abaixo é o que realmente impede força bruta numa conta específica.
   const ipLimit = await rateLimit(`login-ip:${clientIp(req)}`, 20, 5 * 60_000);
   if (!ipLimit.allowed) {
+    alertSecurityEvent("login_ip_limited");
     return NextResponse.json(
       { error: "Muitas tentativas de login. Tente novamente em alguns minutos." },
       { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSeconds) } }
@@ -38,6 +40,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const emailLimit = await rateLimit(`login-email:${email}`, 8, 15 * 60_000);
   if (!emailLimit.allowed) {
+    alertSecurityEvent("login_email_limited");
     return NextResponse.json(
       { error: "Muitas tentativas para este e-mail. Tente novamente em alguns minutos." },
       { status: 429, headers: { "Retry-After": String(emailLimit.retryAfterSeconds) } }

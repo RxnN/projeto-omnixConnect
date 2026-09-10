@@ -3,6 +3,7 @@ import { ApiError } from "./api-handler";
 import { getAdminMfaPath } from "./admin-path";
 import { enterAdminDatabaseContext, prisma } from "./prisma";
 import { getCurrentUser, getSession } from "./session";
+import { alertSecurityEvent } from "./security-monitoring";
 
 export const ADMIN_MFA_TTL_MS = 30 * 60 * 1000;
 
@@ -58,6 +59,9 @@ export async function requireSuperAdminPage() {
 
 export async function requireSuperAdminApi() {
   const admin = await requireSuperAdminIdentityApi();
-  if (!(await hasFreshAdminMfa())) throw new ApiError(403, "Confirme o código de segurança do administrador.");
+  if (!(await hasFreshAdminMfa())) {
+    alertSecurityEvent("admin_access_denied");
+    throw new ApiError(403, "Confirme o código de segurança do administrador.");
+  }
   return admin;
 }

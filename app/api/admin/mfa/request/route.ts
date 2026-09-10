@@ -6,11 +6,13 @@ import { withErrorHandling } from "@/lib/api-handler";
 import { sendAdminMfaCode } from "@/lib/email";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
+import { alertSecurityEvent } from "@/lib/security-monitoring";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireSuperAdminIdentityApi();
   const limit = await rateLimit(`admin-mfa-send:${admin.email}:${clientIp(req)}`, 3, 10 * 60_000);
   if (!limit.allowed) {
+    alertSecurityEvent("admin_mfa_send_limited");
     return NextResponse.json(
       { error: "Muitos códigos solicitados. Aguarde alguns minutos." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { headers } from "next/headers";
 
 export type DatabaseContextKind = "tenant" | "login" | "verify" | "admin";
 
@@ -68,6 +69,20 @@ async function retryTransientConnection<T>(operation: () => Promise<T>): Promise
   }
 }
 
+async function requestDatabaseContext(): Promise<DatabaseContext | undefined> {
+  try {
+    const requestHeaders = await headers();
+    const kind = requestHeaders.get("x-database-context-kind");
+    const value = requestHeaders.get("x-database-context-value")?.trim();
+    if ((kind === "tenant" || kind === "admin") && value && value.length <= 254) {
+      return { kind, value };
+    }
+  } catch {
+    // Scripts e tarefas fora de uma requisição Next não possuem headers().
+  }
+  return undefined;
+}
+
 export function runWithDatabaseContext<T>(
   kind: DatabaseContextKind,
   value: string,
@@ -93,7 +108,8 @@ export function enterAdminDatabaseContext(adminEmail: string): void {
 async function executeWithContext<T>(operation: (client: any) => Promise<T>): Promise<T> {
   const context =
     databaseContext.getStore() ??
-    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined);
+    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined) ??
+    (await requestDatabaseContext());
   if (!context) return retryTransientConnection(() => operation(rawPrisma));
   if (context.transaction) return operation(context.transaction);
 
@@ -140,10 +156,11 @@ function modelDelegate(modelName: string): object {
   return proxy;
 }
 
-function transactionWithContext(first: unknown, options?: unknown) {
+async function transactionWithContext(first: unknown, options?: unknown) {
   const context =
     databaseContext.getStore() ??
-    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined);
+    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined) ??
+    (await requestDatabaseContext());
   if (typeof first !== "function") {
     if (context) {
       throw new Error("Transações em lote não são permitidas dentro de um contexto RLS; use uma função interativa.");
