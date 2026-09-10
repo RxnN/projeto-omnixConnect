@@ -26,9 +26,17 @@ export interface SessionData {
   lastActivityAt: number;
 }
 
+export interface AdminMfaData {
+  codeHash?: string;
+  expiresAt?: number;
+  attempts?: number;
+  verifiedAt?: number;
+}
+
 declare module "iron-session" {
   interface IronSessionData {
     user?: SessionData;
+    adminMfa?: AdminMfaData;
   }
 }
 

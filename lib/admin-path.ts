@@ -8,3 +8,7 @@ export function getAdminPath(): string {
   }
   return value;
 }
+
+export function getAdminMfaPath(): string {
+  return `${getAdminPath()}-verificar`;
+}

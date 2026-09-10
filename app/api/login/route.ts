@@ -76,6 +76,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   await session.save();
 
   const isAdmin = isSuperAdminEmail(user.email);
+  if (isAdmin) session.adminMfa = undefined;
+  await session.save();
   return NextResponse.json({
     ok: true,
     role: user.role,

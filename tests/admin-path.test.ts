@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getAdminPath } from "@/lib/admin-path";
+import { getAdminMfaPath, getAdminPath } from "@/lib/admin-path";
 
 const original = process.env.ADMIN_PATH;
 
@@ -17,6 +17,7 @@ describe("getAdminPath", () => {
   it("aceita um caminho administrativo longo e não público", () => {
     process.env.ADMIN_PATH = "/central-gestao-a1b2c3d4";
     expect(getAdminPath()).toBe("/central-gestao-a1b2c3d4");
+    expect(getAdminMfaPath()).toBe("/central-gestao-a1b2c3d4-verificar");
   });
 
   it("recusa caminhos curtos ou fora do padrão", () => {

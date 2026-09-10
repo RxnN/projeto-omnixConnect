@@ -53,3 +53,23 @@ export async function sendEmailVerification(input: {
     throw new Error(`O serviço de e-mail recusou a mensagem (HTTP ${response.status}).`);
   }
 }
+
+export async function sendAdminMfaCode(email: string, code: string, requestId: string) {
+  const { apiKey, from } = emailConfig();
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `admin-mfa-${requestId}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: "Código de segurança do painel Omnix",
+      text: `Seu código de segurança é ${code}. Ele expira em 10 minutos.`,
+      html: `<p>Seu código de segurança do painel Omnix é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>Ele expira em 10 minutos.</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error(`O serviço de e-mail recusou o código (HTTP ${response.status}).`);
+}
