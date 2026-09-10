@@ -118,6 +118,21 @@ model RateLimitBucket {
   @@index([resetAt])
 }
 
+/// Histórico administrativo permanente. Não possui relação com Empresa para que o
+/// registro seja preservado mesmo se a conta afetada deixar de existir no futuro.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  adminEmail  String
+  empresaId   String?
+  empresaName String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([empresaId, createdAt])
+}
+
 model RegistrationDocument {
   cnpjCpf   String   @id
   empresaId String   @unique

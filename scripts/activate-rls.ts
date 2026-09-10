@@ -7,6 +7,7 @@ const TABLES = [
   "Filial",
   "Counter",
   "RateLimitBucket",
+  "AdminAuditLog",
   "RegistrationDocument",
   "User",
   "EmailVerificationToken",
@@ -84,12 +85,21 @@ async function main() {
     await tx.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "EmailVerificationToken" TO ${quoteIdentifier(runtimeRole)}`,
     );
+    await tx.$executeRawUnsafe(
+      `GRANT SELECT, INSERT ON TABLE "AdminAuditLog" TO ${quoteIdentifier(runtimeRole)}`,
+    );
+    await tx.$executeRawUnsafe(
+      `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "AdminAuditLog" FROM ${quoteIdentifier(runtimeRole)}`,
+    );
   });
 
   await setRls(true);
 
   const tenant = await adminPrisma.empresa.findFirst({ select: { id: true } });
-  if (!tenant) throw new Error("Nenhuma empresa disponível para validar o isolamento.");
+  if (!tenant) {
+    console.log(JSON.stringify({ rlsEnabledTables: TABLES.length, tenantIsolationVerified: "skipped-empty-database" }));
+    return;
+  }
   const runtime = new PrismaClient({ datasourceUrl: runtimeUrl });
   try {
     const ownRows = await runtime.$transaction(async (tx) => {

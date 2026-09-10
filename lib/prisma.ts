@@ -110,6 +110,7 @@ const modelNames = new Set([
   "filial",
   "counter",
   "rateLimitBucket",
+  "adminAuditLog",
   "registrationDocument",
   "user",
   "emailVerificationToken",

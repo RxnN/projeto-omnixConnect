@@ -5,6 +5,7 @@ import { ADMIN_MFA_MAX_ATTEMPTS, verifyAdminMfaCode } from "@/lib/admin-mfa";
 import { withErrorHandling } from "@/lib/api-handler";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
+import { recordAdminAudit } from "@/lib/admin-audit";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireSuperAdminIdentityApi();
@@ -36,6 +37,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: "Código inválido." }, { status: 400 });
   }
 
+  await recordAdminAudit({ action: "ADMIN_MFA_VERIFIED", adminEmail: admin.email });
   session.adminMfa = { verifiedAt: Date.now() };
   await session.save();
   return NextResponse.json({ ok: true, adminPath: getAdminPath() });

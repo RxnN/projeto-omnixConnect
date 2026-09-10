@@ -26,7 +26,7 @@ export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async
   }
 
   const { id } = await params;
-  const empresa = await activateAdminCompany(id, parsed.data.days);
+  const empresa = await activateAdminCompany(id, parsed.data.days, admin.email);
   console.info("[admin] empresa ativada", {
     admin: admin.email,
     empresaId: empresa.id,

@@ -19,7 +19,7 @@ export async function listAdminCompanies() {
   });
 }
 
-export async function activateAdminCompany(empresaId: string, days: number) {
+export async function activateAdminCompany(empresaId: string, days: number, adminEmail: string) {
   return prisma.$transaction(async (tx) => {
     const empresa = await tx.empresa.findUnique({
       where: { id: empresaId },
@@ -55,10 +55,25 @@ export async function activateAdminCompany(empresaId: string, days: number) {
 
     const renewalBase = empresa.paidUntil && empresa.paidUntil > new Date() ? empresa.paidUntil : new Date();
     const paidUntil = new Date(renewalBase.getTime() + days * 24 * 60 * 60 * 1000);
-    return tx.empresa.update({
+    const updated = await tx.empresa.update({
       where: { id: empresa.id },
       data: { approved: true, paidUntil },
       select: { id: true, approved: true, paidUntil: true },
     });
+    await tx.adminAuditLog.create({
+      data: {
+        action: empresa.approved ? "COMPANY_RENEWED" : "COMPANY_ACTIVATED",
+        adminEmail: adminEmail.trim().toLowerCase(),
+        empresaId: empresa.id,
+        empresaName: empresa.name,
+        details: {
+          days,
+          previousApproved: empresa.approved,
+          previousPaidUntil: empresa.paidUntil?.toISOString() ?? null,
+          newPaidUntil: paidUntil.toISOString(),
+        },
+      },
+    });
+    return updated;
   });
 }
