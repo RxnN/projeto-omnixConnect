@@ -21,6 +21,8 @@ export interface SessionData {
   name: string;
   email: string;
   role: Role;
+  /** Versão da senha no login; mudança no banco invalida imediatamente esta sessão. */
+  sessionVersion?: number;
   /** Epoch ms da última requisição autenticada — atualizado no middleware a cada
    * requisição, usado só para o timeout de inatividade (não é o "criado em"). */
   lastActivityAt: number;

@@ -154,6 +154,9 @@ model User {
   email        String     @unique
   emailVerifiedAt DateTime?
   passwordHash String
+  /// Incrementado sempre que a senha é redefinida. A sessão guarda a versão vigente,
+  /// permitindo encerrar imediatamente todos os logins anteriores sem armazenar sessões.
+  sessionVersion Int      @default(0)
   role         Role
   /// Exceções ao perfil-base, definidas pelo Dono. Null = usa integralmente o padrão
   /// do papel (OWNER/MANAGER/EMPLOYEE). O objeto guarda somente chaves booleanas
@@ -165,9 +168,22 @@ model User {
   pedidosCancelados Pedido[] @relation("PedidoCancelledBy")
   promotions   Promotion[]
   emailVerificationToken EmailVerificationToken?
+  passwordResetToken PasswordResetToken?
 }
 
 model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  empresaId String   @map("adegaId")
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([empresaId])
+}
+
+model PasswordResetToken {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

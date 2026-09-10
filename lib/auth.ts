@@ -36,7 +36,12 @@ export async function getAccessState(): Promise<AccessState> {
     getUserById(sessionUser.userId),
     getEmpresaById(sessionUser.empresaId),
   ]);
-  if (!current || !empresa || current.empresaId !== sessionUser.empresaId) {
+  if (
+    !current ||
+    !empresa ||
+    current.empresaId !== sessionUser.empresaId ||
+    current.sessionVersion !== (sessionUser.sessionVersion ?? 0)
+  ) {
     return { status: "UNAUTHENTICATED" };
   }
 
@@ -50,6 +55,7 @@ export async function getAccessState(): Promise<AccessState> {
     name: current.name,
     email: current.email,
     role: current.role,
+    sessionVersion: current.sessionVersion,
     lastActivityAt: sessionUser.lastActivityAt,
   };
 

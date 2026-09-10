@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sendEmailVerification } from "@/lib/email";
+import { sendEmailVerification, sendPasswordReset } from "@/lib/email";
 
 const previous = {
   RESEND_API_KEY: process.env.RESEND_API_KEY,
@@ -40,5 +40,23 @@ describe("envio de confirmação de e-mail", () => {
     expect(body.to).toEqual(["destinatario@example.com"]);
     expect(body.text).toContain("/verificar-email#token=");
     expect(body.text).not.toContain("?token=");
+  });
+
+  it("envia recuperação no fragmento sem expor o token na query", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"id":"email-2"}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendPasswordReset({
+      email: "destinatario@example.com",
+      token: "token_de_recuperacao_123456789012345678901234567890",
+      tokenHash: "b".repeat(64),
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers["Idempotency-Key"]).toBe(`password-reset-${"b".repeat(64)}`);
+    const body = JSON.parse(init.body);
+    expect(body.text).toContain("/redefinir-senha#token=");
+    expect(body.text).not.toContain("?token=");
+    expect(body.text).toContain("30 minutos");
   });
 });

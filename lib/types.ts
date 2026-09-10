@@ -58,6 +58,7 @@ export interface User {
   email: string;
   emailVerifiedAt: string | null;
   passwordHash: string;
+  sessionVersion: number;
   role: Role;
   permissions: PermissionOverrides | null;
   createdAt: string;

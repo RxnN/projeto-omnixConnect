@@ -73,3 +73,35 @@ export async function sendAdminMfaCode(email: string, code: string, requestId: s
   });
   if (!response.ok) throw new Error(`O serviço de e-mail recusou o código (HTTP ${response.status}).`);
 }
+
+export async function sendPasswordReset(input: {
+  email: string;
+  token: string;
+  tokenHash: string;
+}) {
+  const { apiKey, from, origin } = emailConfig();
+  const resetUrl = new URL("/redefinir-senha", origin);
+  // Fragmentos não chegam ao servidor no GET e evitam que o token apareça nos logs.
+  resetUrl.hash = `token=${encodeURIComponent(input.token)}`;
+  const safeUrl = escapeHtml(resetUrl.toString());
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `password-reset-${input.tokenHash}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.email],
+      subject: "Redefina sua senha no Omnix Connect",
+      text: `Redefina sua senha abrindo este endereço: ${resetUrl.toString()}\n\nO link expira em 30 minutos e só pode ser usado uma vez.`,
+      html: `<p>Recebemos uma solicitação para redefinir sua senha no Omnix Connect.</p><p><a href="${safeUrl}">Criar uma nova senha</a></p><p>O link expira em 30 minutos e só pode ser usado uma vez. Se você não solicitou a alteração, ignore esta mensagem.</p>`,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`O serviço de e-mail recusou a recuperação de senha (HTTP ${response.status}).`);
+  }
+}

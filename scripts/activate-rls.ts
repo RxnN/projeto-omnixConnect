@@ -11,6 +11,7 @@ const TABLES = [
   "RegistrationDocument",
   "User",
   "EmailVerificationToken",
+  "PasswordResetToken",
   "Product",
   "Promotion",
   "Pedido",
@@ -84,6 +85,9 @@ async function main() {
     `;
     await tx.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "EmailVerificationToken" TO ${quoteIdentifier(runtimeRole)}`,
+    );
+    await tx.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "PasswordResetToken" TO ${quoteIdentifier(runtimeRole)}`,
     );
     await tx.$executeRawUnsafe(
       `GRANT SELECT, INSERT ON TABLE "AdminAuditLog" TO ${quoteIdentifier(runtimeRole)}`,

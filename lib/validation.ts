@@ -68,19 +68,27 @@ const phoneSchema = z
   .transform((v) => v.replace(/\D/g, ""))
   .refine((v) => v.length === 10 || v.length === 11, "Informe um telefone válido, com DDD.");
 
+export const passwordSchema = z
+  .string()
+  .min(10, "A senha deve ter pelo menos 10 caracteres.")
+  .max(128, "A senha deve ter no máximo 128 caracteres.")
+  .regex(/[A-Za-zÀ-ÿ]/, "A senha deve conter ao menos uma letra.")
+  .regex(/\d/, "A senha deve conter ao menos um número.");
+
+const turnstileTokenSchema = z
+  .string()
+  .trim()
+  .min(1, "Verificação de segurança pendente. Recarregue a página.")
+  .max(4096, "Verificação de segurança inválida.");
+
 export const cadastroSchema = z.object({
   empresaName: z.string().trim().min(1, "Informe o nome da empresa.").max(200, "Nome da empresa muito longo."),
   cnpjCpf: cnpjCpfSchema,
   userName: z.string().trim().min(1, "Informe seu nome.").max(200, "Nome muito longo."),
   phone: phoneSchema,
   email: z.string().trim().min(1, "Informe seu e-mail.").max(254, "E-mail muito longo.").email("E-mail inválido.").toLowerCase(),
-  password: z
-    .string()
-    .min(10, "A senha deve ter pelo menos 10 caracteres.")
-    .max(128, "A senha deve ter no máximo 128 caracteres.")
-    .regex(/[A-Za-zÀ-ÿ]/, "A senha deve conter ao menos uma letra.")
-    .regex(/\d/, "A senha deve conter ao menos um número."),
-  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página.").max(4096, "Verificação de segurança inválida."),
+  password: passwordSchema,
+  turnstileToken: turnstileTokenSchema,
 });
 
 const optionalDate = z.preprocess(
@@ -108,7 +116,23 @@ export const promotionCreateSchema = z
 export const loginSchema = z.object({
   email: z.string().trim().min(1, "Informe e-mail e senha.").max(254, "Informe e-mail e senha.").email("Informe e-mail e senha.").toLowerCase(),
   password: z.string().min(1, "Informe e-mail e senha.").max(128, "Informe e-mail e senha."),
-  turnstileToken: z.string().trim().min(1, "Verificação de segurança pendente. Recarregue a página.").max(4096, "Verificação de segurança inválida."),
+  turnstileToken: turnstileTokenSchema,
+});
+
+export const passwordResetRequestSchema = z.object({
+  email: z.string().trim().max(254, "E-mail inválido.").email("E-mail inválido.").toLowerCase(),
+  turnstileToken: turnstileTokenSchema,
+});
+
+export const passwordResetSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(40, "Link de recuperação inválido.")
+    .max(128, "Link de recuperação inválido.")
+    .regex(/^[A-Za-z0-9_-]+$/, "Link de recuperação inválido."),
+  password: passwordSchema,
+  turnstileToken: turnstileTokenSchema,
 });
 
 export const emailVerificationSchema = z.object({

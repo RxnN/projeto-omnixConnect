@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 
 export default function LoginForm() {
@@ -60,9 +61,12 @@ export default function LoginForm() {
         />
       </div>
       <div>
-        <label className="label" htmlFor="password">
-          Senha
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <label className="label" htmlFor="password">Senha</label>
+          <Link href="/esqueci-senha" className="text-xs font-semibold hover:underline" style={{ color: "var(--accent)" }}>
+            Esqueci minha senha
+          </Link>
+        </div>
         <input
           id="password"
           type="password"

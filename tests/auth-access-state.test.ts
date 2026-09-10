@@ -48,6 +48,7 @@ describe("getAccessState", () => {
       email: sessionUser.email,
       emailVerifiedAt: new Date().toISOString(),
       passwordHash: "hash",
+      sessionVersion: 0,
       role: "OWNER",
       permissions: null,
       createdAt: new Date().toISOString(),
@@ -67,5 +68,35 @@ describe("getAccessState", () => {
 
     expect(access.status).toBe("OK");
     if (access.status === "OK") expect(access.user.userId).toBe(sessionUser.userId);
+  });
+
+  it("rejeita uma sessão criada antes da última troca de senha", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue({ ...sessionUser, sessionVersion: 2 });
+    vi.mocked(getUserById).mockResolvedValue({
+      id: sessionUser.userId,
+      empresaId: sessionUser.empresaId,
+      filialId: null,
+      name: sessionUser.name,
+      phone: null,
+      email: sessionUser.email,
+      emailVerifiedAt: new Date().toISOString(),
+      passwordHash: "hash-novo",
+      sessionVersion: 3,
+      role: "OWNER",
+      permissions: null,
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(getEmpresaById).mockResolvedValue({
+      id: sessionUser.empresaId,
+      name: sessionUser.empresaName,
+      cnpjCpf: null,
+      importEnabled: true,
+      approved: true,
+      paidUntil: null,
+      maxFiliais: 1,
+      createdAt: new Date().toISOString(),
+    });
+
+    await expect(getAccessState()).resolves.toEqual({ status: "UNAUTHENTICATED" });
   });
 });

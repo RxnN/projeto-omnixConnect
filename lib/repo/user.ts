@@ -59,6 +59,7 @@ export async function createUser(input: {
       email: input.email,
       emailVerifiedAt: new Date(),
       passwordHash: input.passwordHash,
+      sessionVersion: 0,
       role: input.role,
     },
   });
