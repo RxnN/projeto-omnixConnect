@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createPromotion } from "@/lib/repo";
-import { prisma } from "@/lib/prisma";
+import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
 vi.mock("@/lib/session", () => ({
@@ -50,7 +50,9 @@ describe("DELETE /api/promocoes/[id]", () => {
     );
 
     expect(res.status).toBe(404);
-    const stillExists = await prisma.promotion.findUnique({ where: { id: foreignPromotion.id } });
+    const stillExists = await runWithDatabaseContext("tenant", other.empresa.id, () =>
+      prisma.promotion.findUnique({ where: { id: foreignPromotion.id } }),
+    );
     expect(stillExists).not.toBeNull();
   });
 });

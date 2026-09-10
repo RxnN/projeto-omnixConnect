@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createFilial, createPedido, getFilialById, getProductById, listFiliais } from "@/lib/repo";
 import { getEstoqueAtual, getFaturamento } from "@/lib/reports";
+import { runWithDatabaseContext } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
 describe("createFilial / listFiliais", () => {
@@ -29,7 +30,11 @@ describe("createFilial / listFiliais", () => {
     const other = await seedFixture();
 
     expect(await getFilialById(filial.id, other.empresa.id)).toBeUndefined();
-    expect(await getFilialById(filial.id, filial.empresaId)).toBeDefined();
+    expect(
+      await runWithDatabaseContext("tenant", filial.empresaId, () =>
+        getFilialById(filial.id, filial.empresaId),
+      ),
+    ).toBeDefined();
   });
 });
 

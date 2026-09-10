@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createUser } from "@/lib/repo";
-import { prisma } from "@/lib/prisma";
+import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 import { seedFixture } from "./helpers";
 
 vi.mock("@/lib/session", () => ({
@@ -50,7 +50,9 @@ describe("PUT /api/usuarios/[id]/permissoes", () => {
     );
 
     expect(res.status).toBe(404);
-    const stillUnchanged = await prisma.user.findUnique({ where: { id: foreignEmployee.id } });
+    const stillUnchanged = await runWithDatabaseContext("tenant", other.empresa.id, () =>
+      prisma.user.findUnique({ where: { id: foreignEmployee.id } }),
+    );
     expect(stillUnchanged?.permissions).toBeNull();
   });
 });

@@ -1,11 +1,11 @@
 import { afterAll } from "vitest";
-import { prisma, runWithDatabaseContext } from "@/lib/prisma";
+import { enterTenantDatabaseContext, prisma, runWithDatabaseContext } from "@/lib/prisma";
 import { createEmpresa, createFilial, createProduct, createUser } from "@/lib/repo";
 import type { Filial, Product } from "@/lib/types";
 
-// Os testes rodam contra o mesmo Postgres (Neon) usado em desenvolvimento, mas
-// cada teste cria sua própria Empresa isolada (nunca toca nos dados reais/seed),
-// e tudo o que foi criado é apagado ao final do arquivo de teste.
+// A configuração do Vitest exige um Postgres exclusivo para testes e bloqueia
+// qualquer URL que identifique a base principal. Cada teste também cria sua
+// própria Empresa isolada e apaga o que criou ao final do arquivo.
 const createdEmpresaIds: string[] = [];
 let emailCounter = 0;
 let documentCounter = 0;
@@ -44,7 +44,7 @@ export async function seedFixture() {
     nextTestCnpj()
   );
   createdEmpresaIds.push(empresa.id);
-  return runWithDatabaseContext("tenant", empresa.id, async () => {
+  const fixture = await runWithDatabaseContext("tenant", empresa.id, async () => {
     await prisma.empresa.update({ where: { id: empresa.id }, data: { approved: true } });
     const filial = await createFilial(empresa.id, "Matriz");
     const user = await createUser({
@@ -56,24 +56,28 @@ export async function seedFixture() {
     });
     return { empresa, filial, user };
   });
+  enterTenantDatabaseContext(empresa.id);
+  return fixture;
 }
 
 export async function seedProduct(
   filial: Pick<Filial, "id" | "empresaId">,
   overrides: Partial<Parameters<typeof createProduct>[0]> = {}
 ): Promise<Product> {
-  return createProduct({
-    empresaId: filial.empresaId,
-    filialId: filial.id,
-    name: overrides.name ?? "Produto de Teste",
-    category: overrides.category ?? "Categoria",
-    unit: overrides.unit ?? "un",
-    costPrice: overrides.costPrice ?? 10,
-    salePrice: overrides.salePrice ?? 20,
-    currentStock: overrides.currentStock ?? 0,
-    minStockAlert: overrides.minStockAlert ?? null,
-    barcode: overrides.barcode ?? null,
-    packageType: overrides.packageType ?? null,
-    unitsPerPackage: overrides.unitsPerPackage ?? null,
-  });
+  return runWithDatabaseContext("tenant", filial.empresaId, () =>
+    createProduct({
+      empresaId: filial.empresaId,
+      filialId: filial.id,
+      name: overrides.name ?? "Produto de Teste",
+      category: overrides.category ?? "Categoria",
+      unit: overrides.unit ?? "un",
+      costPrice: overrides.costPrice ?? 10,
+      salePrice: overrides.salePrice ?? 20,
+      currentStock: overrides.currentStock ?? 0,
+      minStockAlert: overrides.minStockAlert ?? null,
+      barcode: overrides.barcode ?? null,
+      packageType: overrides.packageType ?? null,
+      unitsPerPackage: overrides.unitsPerPackage ?? null,
+    }),
+  );
 }

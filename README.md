@@ -41,6 +41,19 @@ npm run db:rls:activate
 ```
 
 Se for necessário reverter imediatamente a ativação, use `npm run db:rls:disable`.
+
+## Banco exclusivo para testes
+
+Os testes de integração nunca devem usar a base de produção. Crie uma branch ou um banco separado
+no Neon, copie `.env.test.example` para `.env.test` e configure:
+
+- `DATABASE_TEST_URL`: conexão restrita da aplicação para a base de testes.
+- `DATABASE_ADMIN_TEST_URL`: conexão administrativa da base de testes, usada apenas para preparar o schema.
+- `RLS_CONTEXT_TEST_SECRET`: segredo próprio do ambiente de testes, com pelo menos 32 caracteres.
+
+O comando `npm test` é interrompido antes de conectar se a URL de testes estiver ausente ou apontar
+para o mesmo host e banco configurados em `DATABASE_URL` ou `DATABASE_ADMIN_URL`.
+
 ## Usuários de demonstração
 
 Todos os usuários abaixo pertencem à empresa **"Empresa Exemplo"**. A senha é definida localmente pela variável ignorada `DEMO_PASSWORD` e não fica registrada no repositório.

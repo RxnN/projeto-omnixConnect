@@ -13,6 +13,7 @@ interface DatabaseContext {
 type PrismaGlobals = {
   __prismaGlobal?: PrismaClient;
   __databaseContext?: AsyncLocalStorage<DatabaseContext>;
+  __testDatabaseContext?: DatabaseContext;
 };
 
 const globalForPrisma = globalThis as unknown as PrismaGlobals;
@@ -76,17 +77,23 @@ export function runWithDatabaseContext<T>(
 }
 
 export function enterTenantDatabaseContext(empresaId: string): void {
+  const context: DatabaseContext = { kind: "tenant", value: empresaId };
+  if (process.env.NODE_ENV === "test") globalForPrisma.__testDatabaseContext = context;
   const current = databaseContext.getStore();
   if (current?.kind === "tenant" && current.value === empresaId) return;
-  databaseContext.enterWith({ kind: "tenant", value: empresaId });
+  databaseContext.enterWith(context);
 }
 
 export function enterAdminDatabaseContext(adminEmail: string): void {
-  databaseContext.enterWith({ kind: "admin", value: adminEmail.toLowerCase().trim() });
+  const context: DatabaseContext = { kind: "admin", value: adminEmail.toLowerCase().trim() };
+  if (process.env.NODE_ENV === "test") globalForPrisma.__testDatabaseContext = context;
+  databaseContext.enterWith(context);
 }
 
 async function executeWithContext<T>(operation: (client: any) => Promise<T>): Promise<T> {
-  const context = databaseContext.getStore();
+  const context =
+    databaseContext.getStore() ??
+    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined);
   if (!context) return retryTransientConnection(() => operation(rawPrisma));
   if (context.transaction) return operation(context.transaction);
 
@@ -133,7 +140,9 @@ function modelDelegate(modelName: string): object {
 }
 
 function transactionWithContext(first: unknown, options?: unknown) {
-  const context = databaseContext.getStore();
+  const context =
+    databaseContext.getStore() ??
+    (process.env.NODE_ENV === "test" ? globalForPrisma.__testDatabaseContext : undefined);
   if (typeof first !== "function") {
     if (context) {
       throw new Error("Transações em lote não são permitidas dentro de um contexto RLS; use uma função interativa.");

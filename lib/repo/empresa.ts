@@ -31,14 +31,15 @@ export async function registerEmpresaWithOwner(input: {
   const verification = createEmailVerificationToken();
 
   const existing = await runWithDatabaseContext("login", input.email, () =>
-    prisma.user.findUnique({ where: { email: input.email }, include: { empresa: true } }),
+    prisma.user.findUnique({ where: { email: input.email } }),
   );
   if (existing) {
-    if (existing.emailVerifiedAt || existing.empresa.approved) {
-      return { verification: null };
-    }
-
     return runWithDatabaseContext("tenant", existing.empresaId, async () => {
+      const empresa = await prisma.empresa.findUniqueOrThrow({ where: { id: existing.empresaId } });
+      if (existing.emailVerifiedAt || empresa.approved) {
+        return { verification: null };
+      }
+
       await prisma.$transaction(async (tx) => {
         await tx.empresa.update({
           where: { id: existing.empresaId },

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createPedido, createPromotion, createUser, setProductActive, updateUserPermissions } from "@/lib/repo";
-import { prisma } from "@/lib/prisma";
+import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 import { seedFixture, seedProduct } from "./helpers";
 
 // getCurrentUser depende de next/headers (cookies), que só funciona dentro de uma
@@ -441,7 +441,9 @@ describe("POST /api/pedidos/[id]/cancel", () => {
     );
 
     expect(res.status).toBe(404);
-    const stillActive = await prisma.pedido.findUnique({ where: { id: foreignPedido.id } });
+    const stillActive = await runWithDatabaseContext("tenant", other.empresa.id, () =>
+      prisma.pedido.findUnique({ where: { id: foreignPedido.id } }),
+    );
     expect(stillActive?.cancelledAt).toBeNull();
   });
 
