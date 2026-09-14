@@ -7,6 +7,7 @@ import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { rateLimit } from "@/lib/rate-limit";
 import { assertSafeXlsxArchive, UnsafeZipError } from "@/lib/zip-safety";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ROWS = 5_000;
@@ -163,6 +164,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       created++;
     }
   }
+
+  await recordTenantAudit({ user, action: "PRODUCTS_IMPORTED", entityType: "Product", filialId, details: { created, updated, rejected: errors.length } });
 
   return NextResponse.json({ ok: true, created, updated, errors });
 });

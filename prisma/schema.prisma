@@ -133,6 +133,25 @@ model AdminAuditLog {
   @@index([empresaId, createdAt])
 }
 
+/// Histórico imutável das ações sensíveis realizadas dentro de cada empresa.
+/// Os nomes são preservados para que o registro continue compreensível mesmo se
+/// o usuário ou a entidade afetada forem removidos posteriormente.
+model TenantAuditLog {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("adegaId")
+  userId     String
+  userName   String
+  action     String
+  entityType String
+  entityId   String?
+  filialId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([empresaId, createdAt])
+  @@index([userId, createdAt])
+}
+
 model RegistrationDocument {
   cnpjCpf   String   @id
   empresaId String   @unique

@@ -8,6 +8,7 @@ const TABLES = [
   "Counter",
   "RateLimitBucket",
   "AdminAuditLog",
+  "TenantAuditLog",
   "RegistrationDocument",
   "User",
   "EmailVerificationToken",

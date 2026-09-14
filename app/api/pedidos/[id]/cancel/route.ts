@@ -3,6 +3,7 @@ import { getEffectivePermissions, requireApiUser } from "@/lib/auth";
 import { cancelPedido, checkPedidoCancelStock, getPedidoById, StockConflictError } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async (req, { params }) => {
   const { id } = await params;
@@ -49,6 +50,9 @@ export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async
       return NextResponse.json({ warning: error.message }, { status: 409 });
     }
     throw error;
+  }
+  if (cancelled) {
+    await recordTenantAudit({ user, action: "ORDER_CANCELLED", entityType: "Pedido", entityId: id, filialId, details: { number: pedido.number, type: pedido.type, forcedStock: force } });
   }
   return NextResponse.json({ ok: true, pedido: cancelled });
 });

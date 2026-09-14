@@ -4,6 +4,7 @@ import { withErrorHandling } from "@/lib/api-handler";
 import { promotionCreateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { hasPermission, requireApiUser } from "@/lib/auth";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const GET = withErrorHandling(async () => {
   const user = await requireApiUser();
@@ -42,6 +43,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     minQuantity,
     createdByUserId: user.userId,
   });
+  await recordTenantAudit({ user, action: "PROMOTION_CREATED", entityType: "Promotion", entityId: promotion.id, filialId, details: { productId, promoPrice } });
 
   return NextResponse.json({ ok: true, promotion });
 });

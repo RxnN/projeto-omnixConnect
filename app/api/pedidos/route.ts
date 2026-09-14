@@ -15,6 +15,7 @@ import { getCurrentFilialId } from "@/lib/filial-context";
 import { getEffectivePrice } from "@/lib/pricing";
 import { getEffectivePermissions, requireApiUser } from "@/lib/auth";
 import { redactPedidoValues } from "@/lib/financial-data";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireApiUser();
@@ -120,6 +121,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   Sentry.metrics.count("pedido_closed", 1, { attributes: { type: pedido.type } });
+  await recordTenantAudit({ user, action: "ORDER_CREATED", entityType: "Pedido", entityId: pedido.id, filialId, details: { number: pedido.number, type: pedido.type, itemCount: pedido.items.length, forcedStock: Boolean(force && canForceStock) } });
 
   const canViewReturnedValues = type === "OUT" ? permissions.VIEW_REPORTS : permissions.VIEW_COSTS_MARGIN;
   return NextResponse.json({ ok: true, pedido: canViewReturnedValues ? pedido : redactPedidoValues(pedido) });

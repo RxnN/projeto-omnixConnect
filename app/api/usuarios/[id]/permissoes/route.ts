@@ -7,6 +7,7 @@ import {
 } from "@/lib/permissions";
 import { withErrorHandling } from "@/lib/api-handler";
 import { requireApiUser } from "@/lib/auth";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const PUT = withErrorHandling<{ params: Promise<{ id: string }> }>(async (
   req: NextRequest,
@@ -39,6 +40,15 @@ export const PUT = withErrorHandling<{ params: Promise<{ id: string }> }>(async 
   const overrides = reset ? null : normalizePermissionOverrides(rawPermissions);
   const updated = await updateUserPermissions(target.id, owner.empresaId, overrides);
   if (!updated) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+
+  await recordTenantAudit({
+    user: owner,
+    action: "USER_PERMISSIONS_CHANGED",
+    entityType: "User",
+    entityId: updated.id,
+    filialId: updated.filialId,
+    details: { targetName: updated.name, targetRole: updated.role, reset, permissions: updated.permissions ?? {} },
+  });
 
   return NextResponse.json({
     ok: true,

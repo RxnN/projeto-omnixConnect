@@ -127,6 +127,7 @@ const modelNames = new Set([
   "counter",
   "rateLimitBucket",
   "adminAuditLog",
+  "tenantAuditLog",
   "registrationDocument",
   "user",
   "emailVerificationToken",

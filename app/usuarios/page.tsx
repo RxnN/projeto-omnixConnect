@@ -43,7 +43,10 @@ export default async function UsuariosPage() {
         </p>
       </div>
       <UserPermissionsManager users={managedUsers} definitions={PERMISSION_DEFINITIONS} />
+      <div className="card flex flex-wrap items-center justify-between gap-4">
+        <div><h2 className="font-bold">Cópia dos dados da empresa</h2><p className="text-sm" style={{ color: "var(--ink-soft)" }}>Baixe os cadastros, operações e histórico em formato JSON.</p></div>
+        <a className="btn-secondary" href="/api/dados/export">Exportar dados</a>
+      </div>
     </div>
   );
 }
-

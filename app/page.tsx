@@ -48,7 +48,7 @@ export default async function LoginPage() {
         </div>
 
         <p className="text-center text-xs mt-4" style={{ color: "var(--ink-soft)" }}>
-          Seus dados ficam protegidos e isolados por empresa.
+          Seus dados ficam protegidos e isolados por empresa. <Link href="/privacidade" className="underline">Privacidade</Link> · <Link href="/termos" className="underline">Termos</Link>
         </p>
       </div>
     </div>

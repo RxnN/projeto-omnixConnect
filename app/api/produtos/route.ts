@@ -4,6 +4,7 @@ import { createProduct } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { produtoCreateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireApiUser();
@@ -36,6 +37,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     ...data,
     barcode: null,
     unitsPerPackage: data.packageType ? data.unitsPerPackage : null,
+  });
+  await recordTenantAudit({
+    user,
+    action: "PRODUCT_CREATED",
+    entityType: "Product",
+    entityId: product.id,
+    filialId,
+    details: { name: product.name, code: product.code },
   });
 
   const safeProduct = permissions.VIEW_COSTS_MARGIN

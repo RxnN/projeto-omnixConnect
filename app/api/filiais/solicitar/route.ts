@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createPendingFilial, listFiliais } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { hasPermission, requireApiUser } from "@/lib/auth";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 const filialSchema = z.object({ name: z.string().trim().min(1, "Informe o nome da filial.").max(200, "Nome da filial muito longo.") });
 
@@ -27,5 +28,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const filial = await createPendingFilial(user.empresaId, parsed.data.name);
+  await recordTenantAudit({ user, action: "BRANCH_REQUESTED", entityType: "Filial", entityId: filial.id, filialId: filial.id, details: { name: filial.name } });
   return NextResponse.json({ ok: true, filial });
 });

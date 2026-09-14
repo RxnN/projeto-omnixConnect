@@ -59,6 +59,15 @@ const ICONS: Record<string, React.ReactNode> = {
       strokeLinejoin="round"
     />
   ),
+  "/atividade": (
+    <path d="M4 5h16M4 12h16M4 19h10M7 3v4M7 10v4M7 17v4" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  "/alertas": (
+    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  "/comecar": (
+    <path d="m5 12 4 4L19 6M4 4h16v16H4z" strokeLinecap="round" strokeLinejoin="round" />
+  ),
 };
 
 export default function NavBar({
@@ -82,6 +91,7 @@ export default function NavBar({
 
   const links = [
     { href: "/inicio", label: "Início" },
+    { href: "/alertas", label: "Alertas" },
     { href: "/pedidos", label: "Pedidos" },
   ];
   if (permissions?.REGISTER_ENTRIES) links.push({ href: "/entrada", label: "Entrada" });
@@ -94,7 +104,11 @@ export default function NavBar({
     links.push({ href: "/promocoes", label: "Promoções" });
   }
   if (permissions?.MANAGE_BRANCHES) links.push({ href: "/filiais", label: "Filiais" });
-  if (user.role === "OWNER") links.push({ href: "/usuarios", label: "Usuários" });
+  if (user.role === "OWNER") {
+    links.push({ href: "/comecar", label: "Primeiros passos" });
+    links.push({ href: "/usuarios", label: "Usuários" });
+    links.push({ href: "/atividade", label: "Histórico" });
+  }
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });

@@ -3,6 +3,7 @@ import { deletePromotion } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
 import { hasPermission, requireApiUser } from "@/lib/auth";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const DELETE = withErrorHandling<{ params: Promise<{ id: string }> }>(async (_req, { params }) => {
   const { id } = await params;
@@ -16,6 +17,8 @@ export const DELETE = withErrorHandling<{ params: Promise<{ id: string }> }>(asy
   if (!deleted) {
     return NextResponse.json({ error: "Promoção não encontrada nesta filial." }, { status: 404 });
   }
+
+  await recordTenantAudit({ user, action: "PROMOTION_DELETED", entityType: "Promotion", entityId: id, filialId });
 
   return NextResponse.json({ ok: true });
 });

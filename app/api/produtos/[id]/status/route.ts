@@ -4,6 +4,7 @@ import { hasPermission, requireApiUser } from "@/lib/auth";
 import { getProductById, setProductActive } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { getCurrentFilialId } from "@/lib/filial-context";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 const statusSchema = z.object({ active: z.boolean() });
 
@@ -25,5 +26,8 @@ export const POST = withErrorHandling<{ params: Promise<{ id: string }> }>(async
   }
 
   const product = await setProductActive(id, filialId, parsed.data.active);
+  if (product) {
+    await recordTenantAudit({ user, action: "PRODUCT_STATUS_CHANGED", entityType: "Product", entityId: id, filialId, details: { name: existing.name, previousActive: existing.active, active: product.active } });
+  }
   return NextResponse.json({ ok: true, product });
 });

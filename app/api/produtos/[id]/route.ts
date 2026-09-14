@@ -4,6 +4,7 @@ import { getProductById, updateProduct } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { produtoUpdateSchema, firstZodError } from "@/lib/validation";
 import { getCurrentFilialId } from "@/lib/filial-context";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 export const PUT = withErrorHandling<{ params: Promise<{ id: string }> }>(async (req, { params }) => {
   const { id } = await params;
@@ -45,6 +46,21 @@ export const PUT = withErrorHandling<{ params: Promise<{ id: string }> }>(async 
     unitsPerPackage: data.packageType ? data.unitsPerPackage : null,
   });
   if (!product) return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
+
+  await recordTenantAudit({
+    user,
+    action: "PRODUCT_UPDATED",
+    entityType: "Product",
+    entityId: product.id,
+    filialId,
+    details: {
+      name: product.name,
+      previousSalePrice: existing.salePrice,
+      newSalePrice: product.salePrice,
+      previousCostPrice: existing.costPrice,
+      newCostPrice: product.costPrice,
+    },
+  });
 
   const safeProduct = permissions.VIEW_COSTS_MARGIN
     ? product

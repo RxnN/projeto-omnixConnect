@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createFilialWithinLimit, listFiliais } from "@/lib/repo";
 import { withErrorHandling } from "@/lib/api-handler";
 import { hasPermission, requireApiUser } from "@/lib/auth";
+import { recordTenantAudit } from "@/lib/tenant-audit";
 
 const filialSchema = z.object({ name: z.string().trim().min(1, "Informe o nome da filial.").max(200, "Nome da filial muito longo.") });
 
@@ -34,6 +35,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 403 }
     );
   }
+
+  await recordTenantAudit({ user, action: "BRANCH_CREATED", entityType: "Filial", entityId: filial.id, filialId: filial.id, details: { name: filial.name } });
 
   return NextResponse.json({ ok: true, filial });
 });
