@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sendEmailVerification, sendOwnerLoginMfaCode, sendPasswordReset } from "@/lib/email";
+import { sendEmailVerification, sendOwnerLoginMfaCode, sendPasswordReset, sendUserInvite } from "@/lib/email";
 
 const previous = {
   RESEND_API_KEY: process.env.RESEND_API_KEY,
@@ -72,5 +72,16 @@ describe("envio de confirmação de e-mail", () => {
     expect(body.to).toEqual(["dono@example.com"]);
     expect(body.text).toContain("123456");
     expect(body.text).toContain("10 minutos");
+  });
+
+  it("envia convite em fragmento sem senha definida pelo dono", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"id":"email-4"}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await sendUserInvite({ email: "equipe@example.com", token: "token_seguro_de_convite_12345678901234567890", tokenHash: "c".repeat(64), empresaName: "Empresa Teste", inviterName: "Dono" });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.text).toContain("/aceitar-convite#token=");
+    expect(body.text).not.toContain("?token=");
+    expect(body.text.toLowerCase()).not.toContain("senha provisória");
   });
 });

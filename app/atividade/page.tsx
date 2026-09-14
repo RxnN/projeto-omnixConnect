@@ -14,6 +14,11 @@ const ACTION_LABELS: Record<string, string> = {
   BRANCH_CREATED: "Filial criada",
   BRANCH_REQUESTED: "Filial solicitada",
   USER_PERMISSIONS_CHANGED: "Permissões alteradas",
+  SESSION_REVOKED: "Acesso de dispositivo encerrado",
+  OTHER_SESSIONS_REVOKED: "Outros acessos encerrados",
+  USER_INVITED: "Usuário convidado",
+  USER_INVITE_ACCEPTED: "Convite aceito",
+  DATA_DELETION_REQUESTED: "Exclusão de conta solicitada",
 };
 
 export const dynamic = "force-dynamic";

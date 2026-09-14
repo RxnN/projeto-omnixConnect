@@ -5,6 +5,7 @@ import { resolvePermissions } from "./permissions";
 import type { EffectivePermissions, Empresa, PermissionKey, Role } from "./types";
 import { ApiError } from "./api-handler";
 import { enterTenantDatabaseContext } from "./prisma";
+import { validateTrackedSession } from "./user-session";
 
 const EXPIRING_SOON_DAYS = 5;
 
@@ -32,15 +33,19 @@ export async function getAccessState(): Promise<AccessState> {
   if (!sessionUser) return { status: "UNAUTHENTICATED" };
   enterTenantDatabaseContext(sessionUser.empresaId);
 
-  const [current, empresa] = await Promise.all([
+  const [current, empresa, trackedSessionValid] = await Promise.all([
     getUserById(sessionUser.userId),
     getEmpresaById(sessionUser.empresaId),
+    sessionUser.sessionId
+      ? validateTrackedSession(sessionUser.sessionId, sessionUser.userId, sessionUser.empresaId)
+      : Promise.resolve(true),
   ]);
   if (
     !current ||
     !empresa ||
     current.empresaId !== sessionUser.empresaId ||
-    current.sessionVersion !== (sessionUser.sessionVersion ?? 0)
+    current.sessionVersion !== (sessionUser.sessionVersion ?? 0) ||
+    !trackedSessionValid
   ) {
     return { status: "UNAUTHENTICATED" };
   }
@@ -56,6 +61,7 @@ export async function getAccessState(): Promise<AccessState> {
     email: current.email,
     role: current.role,
     sessionVersion: current.sessionVersion,
+    sessionId: sessionUser.sessionId,
     lastActivityAt: sessionUser.lastActivityAt,
   };
 

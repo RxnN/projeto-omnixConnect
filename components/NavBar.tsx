@@ -68,6 +68,9 @@ const ICONS: Record<string, React.ReactNode> = {
   "/comecar": (
     <path d="m5 12 4 4L19 6M4 4h16v16H4z" strokeLinecap="round" strokeLinejoin="round" />
   ),
+  "/seguranca": (
+    <path d="M12 3 4 6v5c0 5 3.4 8.8 8 10 4.6-1.2 8-5 8-10V6l-8-3Zm-3 9 2 2 4-5" strokeLinecap="round" strokeLinejoin="round" />
+  ),
 };
 
 export default function NavBar({
@@ -109,6 +112,7 @@ export default function NavBar({
     links.push({ href: "/usuarios", label: "Usuários" });
     links.push({ href: "/atividade", label: "Histórico" });
   }
+  links.push({ href: "/seguranca", label: "Segurança" });
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });

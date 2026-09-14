@@ -19,6 +19,24 @@ export async function listAdminCompanies() {
   });
 }
 
+export async function getAdminOnlineStats() {
+  const now = new Date();
+  const activeSince = new Date(now.getTime() - 15 * 60 * 1000);
+  const sessions = await prisma.userSession.findMany({
+    where: { revokedAt: null, expiresAt: { gt: now }, lastSeenAt: { gte: activeSince } },
+    select: { empresaId: true, userId: true },
+    distinct: ["empresaId", "userId"],
+  });
+  return {
+    onlineUsers: new Set(sessions.map((session) => session.userId)).size,
+    onlineCompanies: new Set(sessions.map((session) => session.empresaId)).size,
+  };
+}
+
+export async function listAdminDeletionRequests() {
+  return prisma.dataDeletionRequest.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 100 });
+}
+
 export async function activateAdminCompany(empresaId: string, days: number, adminEmail: string) {
   return prisma.$transaction(async (tx) => {
     const empresa = await tx.empresa.findUnique({

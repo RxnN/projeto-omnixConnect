@@ -152,6 +152,55 @@ model TenantAuditLog {
   @@index([userId, createdAt])
 }
 
+model UserSession {
+  id         String   @id
+  empresaId  String   @map("adegaId")
+  userId     String
+  userAgent  String?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([empresaId, lastSeenAt])
+  @@index([userId, lastSeenAt])
+  @@index([expiresAt])
+}
+
+model UserInvite {
+  id              String   @id @default(cuid())
+  empresaId       String   @map("adegaId")
+  filialId        String
+  email           String
+  role            Role
+  tokenHash       String   @unique
+  invitedByUserId String
+  invitedByName   String
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([empresaId, createdAt])
+  @@index([empresaId, email])
+}
+
+model DataDeletionRequest {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("adegaId")
+  empresaName String
+  userId      String
+  userName    String
+  reason      String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+
+  @@index([empresaId, createdAt])
+  @@index([status, createdAt])
+}
+
 model RegistrationDocument {
   cnpjCpf   String   @id
   empresaId String   @unique

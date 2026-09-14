@@ -9,7 +9,7 @@ export const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hora
 /** Tempo máximo absoluto de uma sessão, não importa quanta atividade tenha — depois
  * disso o cookie em si expira (reforçado pelo próprio iron-session no selo dos dados,
  * não só no Max-Age do cookie). */
-const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 dias
+export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 dias
 
 export interface SessionData {
   userId: string;
@@ -23,6 +23,8 @@ export interface SessionData {
   role: Role;
   /** Versão da senha no login; mudança no banco invalida imediatamente esta sessão. */
   sessionVersion?: number;
+  /** Identifica o acesso no registro servidor para permitir revogação por dispositivo. */
+  sessionId?: string;
   /** Epoch ms da última requisição autenticada — atualizado no middleware a cada
    * requisição, usado só para o timeout de inatividade (não é o "criado em"). */
   lastActivityAt: number;

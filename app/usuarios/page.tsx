@@ -7,12 +7,15 @@ import {
 } from "@/lib/permissions";
 import UserPermissionsManager from "@/components/UserPermissionsManager";
 import PageHeader from "@/components/PageHeader";
+import InviteUserForm from "@/components/InviteUserForm";
+import { listPendingInvites } from "@/lib/user-invite";
 
 export default async function UsuariosPage() {
   const owner = await requireRole(["OWNER"]);
-  const [users, filiais] = await Promise.all([
+  const [users, filiais, pendingInvites] = await Promise.all([
     listUsersByEmpresa(owner.empresaId),
     listFiliais(owner.empresaId),
+    listPendingInvites(owner.empresaId),
   ]);
   const filialById = new Map(filiais.map((filial) => [filial.id, filial.name]));
 
@@ -42,6 +45,8 @@ export default async function UsuariosPage() {
           Alterações passam a valer na próxima tela ou ação do usuário, sem necessidade de novo login.
         </p>
       </div>
+      <InviteUserForm filiais={filiais.filter((filial) => filial.approved).map(({ id, name }) => ({ id, name }))} />
+      {pendingInvites.length > 0 && <div className="card"><h2 className="font-bold mb-3">Convites pendentes</h2><div className="space-y-2">{pendingInvites.map((invite) => <div className="flex flex-wrap justify-between gap-2 text-sm" key={invite.id}><span>{invite.email}</span><span style={{ color: "var(--ink-soft)" }}>{invite.role === "MANAGER" ? "Gerente" : "Funcionário"} · expira em {invite.expiresAt.toLocaleString("pt-BR")}</span></div>)}</div></div>}
       <UserPermissionsManager users={managedUsers} definitions={PERMISSION_DEFINITIONS} />
       <div className="card flex flex-wrap items-center justify-between gap-4">
         <div><h2 className="font-bold">Cópia dos dados da empresa</h2><p className="text-sm" style={{ color: "var(--ink-soft)" }}>Baixe os cadastros, operações e histórico em formato JSON.</p></div>

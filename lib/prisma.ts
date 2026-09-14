@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { headers } from "next/headers";
 
-export type DatabaseContextKind = "tenant" | "login" | "verify" | "reset" | "admin";
+export type DatabaseContextKind = "tenant" | "login" | "verify" | "reset" | "invite" | "admin";
 
 interface DatabaseContext {
   kind: DatabaseContextKind;
@@ -128,6 +128,9 @@ const modelNames = new Set([
   "rateLimitBucket",
   "adminAuditLog",
   "tenantAuditLog",
+  "userSession",
+  "userInvite",
+  "dataDeletionRequest",
   "registrationDocument",
   "user",
   "emailVerificationToken",

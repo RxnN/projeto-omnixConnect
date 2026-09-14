@@ -1,14 +1,14 @@
 import AdminCompanies, { type AdminCompanyRow } from "@/components/AdminCompanies";
 import AdminLogoutButton from "@/components/AdminLogoutButton";
 import { requireSuperAdminPage } from "@/lib/admin-access";
-import { listAdminCompanies } from "@/lib/admin-company";
+import { getAdminOnlineStats, listAdminCompanies, listAdminDeletionRequests } from "@/lib/admin-company";
 import { listAdminAuditLogs } from "@/lib/admin-audit";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const admin = await requireSuperAdminPage();
-  const [companies, auditLogs] = await Promise.all([listAdminCompanies(), listAdminAuditLogs(30)]);
+  const [companies, auditLogs, online, deletionRequests] = await Promise.all([listAdminCompanies(), listAdminAuditLogs(30), getAdminOnlineStats(), listAdminDeletionRequests()]);
   const now = new Date();
   const rows: AdminCompanyRow[] = companies.map((company) => ({
     id: company.id,
@@ -43,12 +43,16 @@ export default async function AdminPage() {
         <div className="dashboard-kpi-card dashboard-kpi-warning"><span>Aguardando ativação</span><strong>{awaitingActivation.length}</strong></div>
         <div className="dashboard-kpi-card"><span>E-mail pendente</span><strong>{awaitingEmail.length}</strong></div>
         <div className="dashboard-kpi-card"><span>Assinaturas vencidas</span><strong>{expired.length}</strong></div>
+        <div className="dashboard-kpi-card dashboard-kpi-primary"><span>Empresas online</span><strong>{online.onlineCompanies}</strong><small>nos últimos 15 minutos</small></div>
+        <div className="dashboard-kpi-card"><span>Usuários online</span><strong>{online.onlineUsers}</strong><small>nos últimos 15 minutos</small></div>
       </section>
 
       <section className="space-y-3">
         <div className="section-heading"><h2>Todas as empresas</h2><span className="text-sm">{rows.length} cadastradas</span></div>
         <AdminCompanies companies={rows} />
       </section>
+
+      {deletionRequests.length > 0 && <section className="space-y-3"><div className="section-heading"><h2>Solicitações de exclusão</h2><span className="pill pill-warn">{deletionRequests.length} pendente(s)</span></div><div className="card data-card overflow-x-auto"><table className="data-table"><thead><tr><th>Data</th><th>Empresa</th><th>Solicitante</th><th>Motivo</th></tr></thead><tbody>{deletionRequests.map((request) => <tr key={request.id}><td>{request.createdAt.toLocaleString("pt-BR")}</td><td>{request.empresaName}</td><td>{request.userName}</td><td>{request.reason ?? "—"}</td></tr>)}</tbody></table></div></section>}
 
       <section className="space-y-3">
         <div className="section-heading"><h2>Histórico administrativo</h2><span className="text-sm">Últimas {auditLogs.length} ações</span></div>

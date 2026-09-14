@@ -119,6 +119,20 @@ export const loginSchema = z.object({
   turnstileToken: turnstileTokenSchema,
 });
 
+export const userInviteCreateSchema = z.object({
+  email: z.string().trim().max(254, "E-mail inválido.").email("E-mail inválido.").toLowerCase(),
+  role: z.enum(["MANAGER", "EMPLOYEE"]),
+  filialId: z.string().trim().min(1, "Selecione a filial.").max(128, "Filial inválida."),
+});
+
+export const userInviteAcceptSchema = z.object({
+  token: z.string().trim().min(40, "Convite inválido.").max(128, "Convite inválido.").regex(/^[A-Za-z0-9_-]+$/, "Convite inválido."),
+  name: z.string().trim().min(1, "Informe seu nome.").max(200, "Nome muito longo."),
+  phone: phoneSchema,
+  password: passwordSchema,
+  turnstileToken: turnstileTokenSchema,
+});
+
 export const passwordResetRequestSchema = z.object({
   email: z.string().trim().max(254, "E-mail inválido.").email("E-mail inválido.").toLowerCase(),
   turnstileToken: turnstileTokenSchema,

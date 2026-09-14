@@ -12,6 +12,7 @@ const sessionState = vi.hoisted(() => ({ current: {} as Record<string, unknown> 
 // rodam de verdade contra o Postgres.
 vi.mock("@/lib/session", () => ({
   getSession: vi.fn(async () => sessionState.current),
+  SESSION_TTL_SECONDS: 7 * 24 * 60 * 60,
 }));
 
 vi.mock("@/lib/email", () => ({

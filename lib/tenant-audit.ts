@@ -14,7 +14,12 @@ export type TenantAuditAction =
   | "PROMOTION_DELETED"
   | "BRANCH_CREATED"
   | "BRANCH_REQUESTED"
-  | "USER_PERMISSIONS_CHANGED";
+  | "USER_PERMISSIONS_CHANGED"
+  | "SESSION_REVOKED"
+  | "OTHER_SESSIONS_REVOKED"
+  | "USER_INVITED"
+  | "USER_INVITE_ACCEPTED"
+  | "DATA_DELETION_REQUESTED";
 
 export async function recordTenantAudit(input: {
   user: SessionData;

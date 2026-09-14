@@ -94,6 +94,27 @@ export async function sendOwnerLoginMfaCode(email: string, code: string, request
   if (!response.ok) throw new Error(`O serviço de e-mail recusou o código (HTTP ${response.status}).`);
 }
 
+export async function sendUserInvite(input: { email: string; token: string; tokenHash: string; empresaName: string; inviterName: string }) {
+  const { apiKey, from, origin } = emailConfig();
+  const inviteUrl = new URL("/aceitar-convite", origin);
+  inviteUrl.hash = `token=${encodeURIComponent(input.token)}`;
+  const safeUrl = escapeHtml(inviteUrl.toString());
+  const safeCompany = escapeHtml(input.empresaName);
+  const safeInviter = escapeHtml(input.inviterName);
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `user-invite-${input.tokenHash}` },
+    body: JSON.stringify({
+      from,
+      to: [input.email],
+      subject: `Convite para ${input.empresaName} no Omnix Connect`,
+      text: `${input.inviterName} convidou você para acessar ${input.empresaName}. Crie sua senha em: ${inviteUrl.toString()}\n\nO convite expira em 48 horas.`,
+      html: `<p>${safeInviter} convidou você para acessar <strong>${safeCompany}</strong> no Omnix Connect.</p><p><a href="${safeUrl}">Aceitar convite e criar senha</a></p><p>O convite expira em 48 horas.</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error(`O serviço de e-mail recusou o convite (HTTP ${response.status}).`);
+}
+
 export async function sendPasswordReset(input: {
   email: string;
   token: string;

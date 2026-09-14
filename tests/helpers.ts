@@ -26,6 +26,8 @@ afterAll(async () => {
   for (const empresaId of createdEmpresaIds) {
     await runWithDatabaseContext("tenant", empresaId, async () => {
       await prisma.tenantAuditLog.deleteMany({ where: { empresaId } }).catch(() => undefined);
+      await prisma.userSession.deleteMany({ where: { empresaId } }).catch(() => undefined);
+      await prisma.userInvite.deleteMany({ where: { empresaId } }).catch(() => undefined);
       await prisma.movement.deleteMany({ where: { empresaId } });
       await prisma.pedido.deleteMany({ where: { empresaId } });
       await prisma.promotion.deleteMany({ where: { empresaId } });

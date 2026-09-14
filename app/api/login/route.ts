@@ -14,6 +14,7 @@ import { alertSecurityEvent } from "@/lib/security-monitoring";
 import { createLoginMfaCode } from "@/lib/login-mfa";
 import { sendOwnerLoginMfaCode } from "@/lib/email";
 import { randomUUID } from "node:crypto";
+import { createTrackedSession } from "@/lib/user-session";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -87,6 +88,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const empresa = await runWithDatabaseContext("tenant", user.empresaId, () => getEmpresaById(user.empresaId));
+  const trackedSessionId = await runWithDatabaseContext("tenant", user.empresaId, () =>
+    createTrackedSession(user.id, user.empresaId, req),
+  );
   session.user = {
     userId: user.id,
     empresaId: user.empresaId,
@@ -96,6 +100,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     email: user.email,
     role: user.role,
     sessionVersion: user.sessionVersion,
+    sessionId: trackedSessionId,
     lastActivityAt: Date.now(),
   };
   session.loginMfa = undefined;

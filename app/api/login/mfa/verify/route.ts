@@ -6,6 +6,7 @@ import { LOGIN_MFA_MAX_ATTEMPTS, verifyLoginMfaCode } from "@/lib/login-mfa";
 import { alertSecurityEvent, countSecurityEvent } from "@/lib/security-monitoring";
 import { getEmpresaById, getUserByEmail } from "@/lib/repo";
 import { runWithDatabaseContext } from "@/lib/prisma";
+import { createTrackedSession } from "@/lib/user-session";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const limit = await rateLimit(`owner-login-mfa-verify:${clientIp(req)}`, 10, 10 * 60_000);
@@ -60,6 +61,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 401 });
   }
 
+  const trackedSessionId = await runWithDatabaseContext("tenant", user.empresaId, () =>
+    createTrackedSession(user.id, user.empresaId, req),
+  );
+
   session.user = {
     userId: user.id,
     empresaId: user.empresaId,
@@ -69,6 +74,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     email: user.email,
     role: user.role,
     sessionVersion: user.sessionVersion,
+    sessionId: trackedSessionId,
     lastActivityAt: Date.now(),
   };
   session.loginMfa = undefined;
