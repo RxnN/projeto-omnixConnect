@@ -35,7 +35,7 @@ export default function LoginForm() {
       // Navegação completa — garante que toda a árvore (layout + página) renderize do
       // zero pra sessão nova, sem reaproveitar cache de rota de uma conta anterior
       // (ex: papel/preços de um dono aparecendo depois de logar como funcionário).
-      window.location.href = data.admin ? data.adminPath : "/inicio";
+      window.location.href = data.mfaRequired ? "/verificar-login" : data.admin ? data.adminPath : "/inicio";
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);

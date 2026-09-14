@@ -35,10 +35,21 @@ export interface AdminMfaData {
   verifiedAt?: number;
 }
 
+export interface LoginMfaData {
+  userId: string;
+  empresaId: string;
+  email: string;
+  sessionVersion: number;
+  codeHash: string;
+  expiresAt: number;
+  attempts: number;
+}
+
 declare module "iron-session" {
   interface IronSessionData {
     user?: SessionData;
     adminMfa?: AdminMfaData;
+    loginMfa?: LoginMfaData;
   }
 }
 

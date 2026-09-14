@@ -7,6 +7,8 @@ export type SecurityEvent =
   | "admin_mfa_invalid"
   | "login_email_limited"
   | "login_ip_limited"
+  | "login_mfa_invalid"
+  | "login_mfa_verify_limited"
   | "request_origin_rejected";
 
 export function countSecurityEvent(event: SecurityEvent) {

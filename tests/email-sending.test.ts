@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sendEmailVerification, sendPasswordReset } from "@/lib/email";
+import { sendEmailVerification, sendOwnerLoginMfaCode, sendPasswordReset } from "@/lib/email";
 
 const previous = {
   RESEND_API_KEY: process.env.RESEND_API_KEY,
@@ -58,5 +58,19 @@ describe("envio de confirmação de e-mail", () => {
     expect(body.text).toContain("/redefinir-senha#token=");
     expect(body.text).not.toContain("?token=");
     expect(body.text).toContain("30 minutos");
+  });
+
+  it("envia o código de acesso do dono sem incluir credenciais", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"id":"email-3"}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendOwnerLoginMfaCode("dono@example.com", "123456", "request-1");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers["Idempotency-Key"]).toBe("owner-login-mfa-request-1");
+    const body = JSON.parse(init.body);
+    expect(body.to).toEqual(["dono@example.com"]);
+    expect(body.text).toContain("123456");
+    expect(body.text).toContain("10 minutos");
   });
 });

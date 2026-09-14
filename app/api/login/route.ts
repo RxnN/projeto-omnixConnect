@@ -11,6 +11,9 @@ import { runWithDatabaseContext } from "@/lib/prisma";
 import { isSuperAdminEmail } from "@/lib/admin-access";
 import { getAdminPath } from "@/lib/admin-path";
 import { alertSecurityEvent } from "@/lib/security-monitoring";
+import { createLoginMfaCode } from "@/lib/login-mfa";
+import { sendOwnerLoginMfaCode } from "@/lib/email";
+import { randomUUID } from "node:crypto";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -63,9 +66,27 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     );
   }
 
-  const empresa = await runWithDatabaseContext("tenant", user.empresaId, () => getEmpresaById(user.empresaId));
-
   const session = await getSession();
+  const isAdmin = isSuperAdminEmail(user.email);
+  if (user.role === "OWNER" && !isAdmin) {
+    const generated = createLoginMfaCode();
+    session.user = undefined;
+    session.adminMfa = undefined;
+    session.loginMfa = {
+      userId: user.id,
+      empresaId: user.empresaId,
+      email: user.email,
+      sessionVersion: user.sessionVersion,
+      codeHash: generated.codeHash,
+      expiresAt: generated.expiresAt,
+      attempts: 0,
+    };
+    await session.save();
+    await sendOwnerLoginMfaCode(user.email, generated.code, randomUUID());
+    return NextResponse.json({ ok: true, mfaRequired: true });
+  }
+
+  const empresa = await runWithDatabaseContext("tenant", user.empresaId, () => getEmpresaById(user.empresaId));
   session.user = {
     userId: user.id,
     empresaId: user.empresaId,
@@ -77,9 +98,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     sessionVersion: user.sessionVersion,
     lastActivityAt: Date.now(),
   };
-  await session.save();
-
-  const isAdmin = isSuperAdminEmail(user.email);
+  session.loginMfa = undefined;
   if (isAdmin) session.adminMfa = undefined;
   await session.save();
   return NextResponse.json({

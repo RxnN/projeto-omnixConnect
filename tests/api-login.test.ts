@@ -1,15 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { createUser } from "@/lib/repo";
 import { seedFixture } from "./helpers";
 import { prisma, runWithDatabaseContext } from "@/lib/prisma";
 
+const sessionState = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+
 // getSession() grava um cookie via next/headers, que só existe dentro de uma requisição
 // real do App Router. Mockamos só essa borda; a busca de usuário e a comparação de senha
 // rodam de verdade contra o Postgres.
 vi.mock("@/lib/session", () => ({
-  getSession: vi.fn(async () => ({ user: undefined, save: vi.fn() })),
+  getSession: vi.fn(async () => sessionState.current),
+}));
+
+vi.mock("@/lib/email", () => ({
+  sendOwnerLoginMfaCode: vi.fn(async () => {}),
 }));
 
 // Evita depender do endpoint real da Cloudflare nos testes — a verificação do token
@@ -31,6 +37,10 @@ function makeRequest(body: Record<string, unknown>, ip: string) {
 }
 
 describe("POST /api/login", () => {
+  beforeEach(() => {
+    sessionState.current = { user: undefined, loginMfa: undefined, adminMfa: undefined, save: vi.fn() };
+  });
+
   it("rejeita e-mail inexistente sem revelar que o e-mail não existe", async () => {
     const res = await POST(makeRequest({ email: "nao-existe@teste.com", password: "qualquer" }, "10.0.0.1"));
     const json = await res.json();
@@ -39,7 +49,7 @@ describe("POST /api/login", () => {
     expect(json.error).toBe("E-mail ou senha inválidos.");
   });
 
-  it("autentica com credenciais corretas", async () => {
+  it("exige o segundo fator antes de criar a sessão do dono", async () => {
     const { empresa } = await seedFixture();
     const passwordHash = await bcrypt.hash("senha-correta", 10);
     const email = `login-${Date.now()}@teste.com`;
@@ -51,7 +61,9 @@ describe("POST /api/login", () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.role).toBe("OWNER");
+    expect(json.mfaRequired).toBe(true);
+    expect(sessionState.current.user).toBeUndefined();
+    expect(sessionState.current.loginMfa).toMatchObject({ email, attempts: 0 });
   });
 
   it("não cria sessão antes da confirmação do e-mail", async () => {

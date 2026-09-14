@@ -74,6 +74,26 @@ export async function sendAdminMfaCode(email: string, code: string, requestId: s
   if (!response.ok) throw new Error(`O serviço de e-mail recusou o código (HTTP ${response.status}).`);
 }
 
+export async function sendOwnerLoginMfaCode(email: string, code: string, requestId: string) {
+  const { apiKey, from } = emailConfig();
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `owner-login-mfa-${requestId}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: "Código para entrar no Omnix Connect",
+      text: `Seu código para entrar é ${code}. Ele expira em 10 minutos. Se você não tentou entrar, troque sua senha.`,
+      html: `<p>Use este código para entrar no Omnix Connect:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>Ele expira em 10 minutos. Se você não tentou entrar, troque sua senha.</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error(`O serviço de e-mail recusou o código (HTTP ${response.status}).`);
+}
+
 export async function sendPasswordReset(input: {
   email: string;
   token: string;
