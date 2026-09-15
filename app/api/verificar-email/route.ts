@@ -4,6 +4,7 @@ import { emailVerificationSchema, firstZodError } from "@/lib/validation";
 import { verifyEmailAddress } from "@/lib/repo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { hashEmailVerificationToken } from "@/lib/email-verification";
+import { trustOwnerDevice } from "@/lib/trusted-device";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const body = await req.json().catch(() => null);
@@ -29,8 +30,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const result = await verifyEmailAddress(parsed.data.token);
-  if (result !== "VERIFIED") {
+  if (result.status !== "VERIFIED") {
     return NextResponse.json({ error: "Este link é inválido, expirou ou já foi utilizado." }, { status: 400 });
   }
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  await trustOwnerDevice(response, { id: result.userId, sessionVersion: result.sessionVersion });
+  return response;
 });

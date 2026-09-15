@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { createUser } from "@/lib/repo";
 import { seedFixture } from "./helpers";
 import { prisma, runWithDatabaseContext } from "@/lib/prisma";
+import { createTrustedDeviceCookieValue, TRUSTED_DEVICE_COOKIE } from "@/lib/trusted-device";
 
 const sessionState = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 
@@ -29,10 +30,10 @@ import { POST as loginPost } from "@/app/api/login/route";
 
 const POST = (req: NextRequest) => loginPost(req, undefined);
 
-function makeRequest(body: Record<string, unknown>, ip: string) {
+function makeRequest(body: Record<string, unknown>, ip: string, cookie?: string) {
   return new NextRequest("http://localhost/api/login", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": ip },
+    headers: { "content-type": "application/json", "x-forwarded-for": ip, ...(cookie ? { cookie } : {}) },
     body: JSON.stringify({ turnstileToken: "test-token", ...body }),
   });
 }
@@ -65,6 +66,51 @@ describe("POST /api/login", () => {
     expect(json.mfaRequired).toBe(true);
     expect(sessionState.current.user).toBeUndefined();
     expect(sessionState.current.loginMfa).toMatchObject({ email, attempts: 0 });
+  });
+
+  it("não repete o MFA em um dispositivo confiável para o mesmo dono e versão de senha", async () => {
+    const { empresa } = await seedFixture();
+    const passwordHash = await bcrypt.hash("senha-correta", 10);
+    const email = `login-trusted-${Date.now()}@teste.com`;
+    const user = await runWithDatabaseContext("tenant", empresa.id, () =>
+      createUser({ empresaId: empresa.id, name: "Login Confiável", email, passwordHash, role: "OWNER" }),
+    );
+    const trusted = await createTrustedDeviceCookieValue(user.id, user.sessionVersion);
+
+    const res = await POST(makeRequest(
+      { email, password: "senha-correta" },
+      "10.0.0.22",
+      `${TRUSTED_DEVICE_COOKIE}=${trusted}`,
+    ));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.mfaRequired).toBeUndefined();
+    expect(sessionState.current.user).toMatchObject({ userId: user.id, role: "OWNER" });
+  });
+
+  it("exige MFA novamente quando a versão da senha mudou", async () => {
+    const { empresa } = await seedFixture();
+    const passwordHash = await bcrypt.hash("senha-correta", 10);
+    const email = `login-stale-trusted-${Date.now()}@teste.com`;
+    const user = await runWithDatabaseContext("tenant", empresa.id, () =>
+      createUser({ empresaId: empresa.id, name: "Login Alterado", email, passwordHash, role: "OWNER" }),
+    );
+    const trusted = await createTrustedDeviceCookieValue(user.id, user.sessionVersion);
+    await runWithDatabaseContext("tenant", empresa.id, () =>
+      prisma.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } }),
+    );
+
+    const res = await POST(makeRequest(
+      { email, password: "senha-correta" },
+      "10.0.0.23",
+      `${TRUSTED_DEVICE_COOKIE}=${trusted}`,
+    ));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.mfaRequired).toBe(true);
+    expect(sessionState.current.user).toBeUndefined();
   });
 
   it("não cria sessão antes da confirmação do e-mail", async () => {

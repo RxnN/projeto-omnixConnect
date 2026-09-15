@@ -52,13 +52,16 @@ describe("confirmação de e-mail", () => {
       passwordHash: "novo-hash-de-teste",
     });
     expect(refreshed.verification?.token).not.toBe(verification.token);
-    await expect(verifyEmailAddress(verification.token)).resolves.toBe("INVALID_OR_EXPIRED");
-    await expect(verifyEmailAddress(refreshed.verification!.token)).resolves.toBe("VERIFIED");
+    await expect(verifyEmailAddress(verification.token)).resolves.toEqual({ status: "INVALID_OR_EXPIRED" });
+    await expect(verifyEmailAddress(refreshed.verification!.token)).resolves.toMatchObject({
+      status: "VERIFIED",
+      userId: user.id,
+    });
 
     const confirmed = await runWithDatabaseContext("tenant", empresaId, () =>
       prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
     );
     expect(confirmed.emailVerifiedAt).toBeInstanceOf(Date);
-    await expect(verifyEmailAddress(refreshed.verification!.token)).resolves.toBe("INVALID_OR_EXPIRED");
+    await expect(verifyEmailAddress(refreshed.verification!.token)).resolves.toEqual({ status: "INVALID_OR_EXPIRED" });
   });
 });

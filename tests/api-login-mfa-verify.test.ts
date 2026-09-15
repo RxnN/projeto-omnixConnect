@@ -14,11 +14,11 @@ import { POST as verifyPost } from "@/app/api/login/mfa/verify/route";
 
 const POST = (req: NextRequest) => verifyPost(req, undefined);
 
-function makeRequest(code: string) {
+function makeRequest(code: string, trustDevice = false) {
   return new NextRequest("http://localhost/api/login/mfa/verify", {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": `10.8.0.${Math.floor(Math.random() * 200) + 1}` },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, trustDevice }),
   });
 }
 
@@ -65,5 +65,25 @@ describe("POST /api/login/mfa/verify", () => {
     expect(response.status).toBe(400);
     expect(sessionState.current.user).toBeUndefined();
     expect(sessionState.current.loginMfa.attempts).toBe(1);
+  });
+
+  it("marca o navegador como confiável somente após o código correto", async () => {
+    const { user } = await seedFixture();
+    const generated = createLoginMfaCode();
+    sessionState.current.loginMfa = {
+      userId: user.id,
+      empresaId: user.empresaId,
+      email: user.email,
+      sessionVersion: user.sessionVersion,
+      codeHash: generated.codeHash,
+      expiresAt: generated.expiresAt,
+      attempts: 0,
+    };
+
+    const response = await POST(makeRequest(generated.code, true));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("owner_trusted_device=");
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
   });
 });

@@ -7,6 +7,7 @@ import { alertSecurityEvent, countSecurityEvent } from "@/lib/security-monitorin
 import { getEmpresaById, getUserByEmail } from "@/lib/repo";
 import { runWithDatabaseContext } from "@/lib/prisma";
 import { createTrackedSession } from "@/lib/user-session";
+import { trustOwnerDevice } from "@/lib/trusted-device";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const limit = await rateLimit(`owner-login-mfa-verify:${clientIp(req)}`, 10, 10 * 60_000);
@@ -17,6 +18,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => null);
   const code = typeof body?.code === "string" ? body.code.trim() : "";
+  const trustDevice = body?.trustDevice === true;
   if (!/^\d{6}$/.test(code)) {
     return NextResponse.json({ error: "Digite o código de 6 números." }, { status: 400 });
   }
@@ -80,5 +82,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   session.loginMfa = undefined;
   session.adminMfa = undefined;
   await session.save();
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  if (trustDevice) await trustOwnerDevice(response, user);
+  return response;
 });

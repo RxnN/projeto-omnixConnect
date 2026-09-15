@@ -15,6 +15,7 @@ import { createLoginMfaCode } from "@/lib/login-mfa";
 import { sendOwnerLoginMfaCode } from "@/lib/email";
 import { randomUUID } from "node:crypto";
 import { createTrackedSession } from "@/lib/user-session";
+import { isTrustedOwnerDevice } from "@/lib/trusted-device";
 
 // Hash "morto" só pra igualar o tempo de resposta quando o e-mail nem existe
 // (evita que alguém descubra e-mails cadastrados medindo o tempo da resposta).
@@ -69,7 +70,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const session = await getSession();
   const isAdmin = isSuperAdminEmail(user.email);
-  if (user.role === "OWNER" && !isAdmin) {
+  const trustedOwnerDevice = user.role === "OWNER" && !isAdmin
+    ? await isTrustedOwnerDevice(req, user)
+    : false;
+  if (user.role === "OWNER" && !isAdmin && !trustedOwnerDevice) {
     const generated = createLoginMfaCode();
     session.user = undefined;
     session.adminMfa = undefined;

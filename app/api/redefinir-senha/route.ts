@@ -7,6 +7,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { firstZodError, passwordResetSchema } from "@/lib/validation";
+import { forgetTrustedOwnerDevice } from "@/lib/trusted-device";
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const body = await req.json().catch(() => null);
@@ -42,8 +43,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const session = await getSession();
   session.destroy();
-  return NextResponse.json(
+  const response = NextResponse.json(
     { ok: true },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
   );
+  forgetTrustedOwnerDevice(response);
+  return response;
 });
