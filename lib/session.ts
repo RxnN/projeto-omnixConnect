@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getIronSession, IronSessionData } from "iron-session";
-import type { Role } from "./types";
+import type { PermissionOverrides, Role } from "./types";
 
 /** Expira por inatividade — se a última atividade foi há mais que isso, a sessão
  * é tratada como inválida mesmo com o cookie ainda presente e dentro do TTL absoluto. */
@@ -10,6 +10,10 @@ export const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hora
  * disso o cookie em si expira (reforçado pelo próprio iron-session no selo dos dados,
  * não só no Max-Age do cookie). */
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 dias
+
+/** Evita recriptografar e reenviar o cookie em toda navegação. A atividade continua
+ * sendo renovada com folga suficiente antes do limite de inatividade. */
+export const SESSION_ACTIVITY_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface SessionData {
   userId: string;
@@ -21,6 +25,12 @@ export interface SessionData {
   name: string;
   email: string;
   role: Role;
+  /** Carregado do banco durante a autorização desta requisição. Não depende do valor
+   * antigo do cookie e permite que layout e página reutilizem a mesma leitura. */
+  permissionOverrides?: PermissionOverrides | null;
+  /** Usado apenas para o aviso visual de vencimento. A autorização continua lendo a
+   * situação atual diretamente do banco em toda página protegida. */
+  subscriptionPaidUntil?: string | null;
   /** Versão da senha no login; mudança no banco invalida imediatamente esta sessão. */
   sessionVersion?: number;
   /** Identifica o acesso no registro servidor para permitir revogação por dispositivo. */

@@ -86,7 +86,12 @@ describe("POST /api/login", () => {
 
     expect(res.status).toBe(200);
     expect(json.mfaRequired).toBeUndefined();
-    expect(sessionState.current.user).toMatchObject({ userId: user.id, role: "OWNER" });
+    expect(sessionState.current.user).toMatchObject({
+      userId: user.id,
+      role: "OWNER",
+      permissionOverrides: user.permissions,
+      subscriptionPaidUntil: null,
+    });
   });
 
   it("exige MFA novamente quando a versão da senha mudou", async () => {

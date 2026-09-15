@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
-import { sessionOptions, IDLE_TIMEOUT_MS, type SessionData } from "@/lib/session";
+import {
+  sessionOptions,
+  IDLE_TIMEOUT_MS,
+  SESSION_ACTIVITY_TOUCH_INTERVAL_MS,
+  type SessionData,
+} from "@/lib/session";
 import { getAdminMfaPath, getAdminPath } from "@/lib/admin-path";
 
 /** Renova ou encerra a sessão ociosa e cria a política CSP com um nonce novo por
@@ -58,10 +63,12 @@ export async function middleware(req: NextRequest) {
   if (session.user) {
     if (Date.now() - session.user.lastActivityAt > IDLE_TIMEOUT_MS) {
       session.destroy();
-    } else {
+    } else if (Date.now() - session.user.lastActivityAt >= SESSION_ACTIVITY_TOUCH_INTERVAL_MS) {
       session.user.lastActivityAt = Date.now();
       await session.save();
+    }
 
+    if (session.user) {
       const configuredAdmins = new Set(
         (process.env.SUPER_ADMIN_EMAILS ?? "")
           .split(",")

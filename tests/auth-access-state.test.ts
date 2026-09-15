@@ -9,7 +9,7 @@ vi.mock("@/lib/repo", () => ({
   getEmpresaById: vi.fn(),
 }));
 
-import { getAccessState } from "@/lib/auth";
+import { getAccessState, getEffectivePermissions } from "@/lib/auth";
 import { getEmpresaById, getUserById } from "@/lib/repo";
 import { getCurrentUser } from "@/lib/session";
 
@@ -98,5 +98,16 @@ describe("getAccessState", () => {
     });
 
     await expect(getAccessState()).resolves.toEqual({ status: "UNAUTHENTICATED" });
+  });
+
+  it("reutiliza permissões já lidas na autorização sem consultar o usuário novamente", async () => {
+    const permissions = await getEffectivePermissions({
+      userId: "gerente-1",
+      role: "MANAGER",
+      permissionOverrides: { CANCEL_ORDERS: true },
+    });
+
+    expect(permissions.CANCEL_ORDERS).toBe(true);
+    expect(getUserById).not.toHaveBeenCalled();
   });
 });

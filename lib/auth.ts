@@ -6,6 +6,7 @@ import type { EffectivePermissions, Empresa, PermissionKey, Role } from "./types
 import { ApiError } from "./api-handler";
 import { enterTenantDatabaseContext } from "./prisma";
 import { validateTrackedSession } from "./user-session";
+import type { PermissionOverrides } from "./types";
 
 const EXPIRING_SOON_DAYS = 5;
 
@@ -60,6 +61,8 @@ export async function getAccessState(): Promise<AccessState> {
     name: current.name,
     email: current.email,
     role: current.role,
+    permissionOverrides: current.permissions,
+    subscriptionPaidUntil: empresa.paidUntil,
     sessionVersion: current.sessionVersion,
     sessionId: sessionUser.sessionId,
     lastActivityAt: sessionUser.lastActivityAt,
@@ -124,8 +127,12 @@ export async function requireRole(allowed: Role[]): Promise<SessionData> {
 /** Permissões efetivas são lidas do banco em cada autorização, evitando que uma
  * alteração feita pelo Dono dependa de novo login do usuário afetado. */
 export async function getEffectivePermissions(
-  user: Pick<SessionData, "userId" | "role">
+  user: Pick<SessionData, "userId" | "role"> & { permissionOverrides?: PermissionOverrides | null }
 ): Promise<EffectivePermissions> {
+  if (user.role === "OWNER") return resolvePermissions("OWNER", null);
+  if (user.permissionOverrides !== undefined) {
+    return resolvePermissions(user.role, user.permissionOverrides);
+  }
   const current = await getUserById(user.userId);
   if (!current) {
     return {

@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/session";
-import { getEmpresaById, listActiveFiliais } from "@/lib/repo";
+import { listActiveFiliais } from "@/lib/repo";
 import { getEffectivePermissions, getSubscriptionStatus } from "@/lib/auth";
 import type { EffectivePermissions } from "@/lib/types";
-import { getCurrentFilialId } from "@/lib/filial-context";
+import { getCurrentFilialId, SELECTED_FILIAL_COOKIE } from "@/lib/filial-context";
 import AppShell from "@/components/AppShell";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { enterTenantDatabaseContext } from "@/lib/prisma";
 
 const manrope = Manrope({
@@ -55,22 +55,27 @@ export default async function RootLayout({
   // "Sair") — se a sessão estiver inválida (ex: empresa apagada) ou o banco estiver
   // momentaneamente fora do ar, essas buscas extras degradam silenciosamente em vez de
   // derrubar a página inteira e prender o usuário sem conseguir deslogar.
-  let empresa;
   let filiais: Awaited<ReturnType<typeof listActiveFiliais>> = [];
   let currentFilialId: string | null = null;
   let permissions: EffectivePermissions | null = null;
   if (user) {
     try {
       if (user.role === "OWNER") {
-        [empresa, filiais] = await Promise.all([getEmpresaById(user.empresaId), listActiveFiliais(user.empresaId)]);
+        filiais = await listActiveFiliais(user.empresaId);
+        const selectedFilialId = (await cookies()).get(SELECTED_FILIAL_COOKIE)?.value;
+        currentFilialId = filiais.find((filial) => filial.id === selectedFilialId)?.id ?? filiais[0]?.id ?? null;
+        if (!currentFilialId) currentFilialId = await getCurrentFilialId(user);
+      } else {
+        currentFilialId = user.filialId;
       }
-      currentFilialId = await getCurrentFilialId(user);
       permissions = await getEffectivePermissions(user);
     } catch (error) {
       console.error("[RootLayout] falha ao carregar contexto de filial/assinatura", error);
     }
   }
-  const subscriptionStatus = empresa ? getSubscriptionStatus(empresa) : null;
+  const subscriptionStatus = user?.subscriptionPaidUntil !== undefined
+    ? getSubscriptionStatus({ paidUntil: user.subscriptionPaidUntil })
+    : null;
 
   return (
     <html lang="pt-BR" className={`${manrope.variable} ${plexMono.variable}`}>

@@ -75,6 +75,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    permissionOverrides: user.permissions,
+    subscriptionPaidUntil: empresa.paidUntil,
     sessionVersion: user.sessionVersion,
     sessionId: trackedSessionId,
     lastActivityAt: Date.now(),

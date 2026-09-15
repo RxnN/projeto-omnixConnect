@@ -44,7 +44,12 @@ describe("POST /api/login/mfa/verify", () => {
 
     expect(response.status).toBe(200);
     expect(sessionState.current.loginMfa).toBeUndefined();
-    expect(sessionState.current.user).toMatchObject({ userId: user.id, role: "OWNER" });
+    expect(sessionState.current.user).toMatchObject({
+      userId: user.id,
+      role: "OWNER",
+      permissionOverrides: user.permissions,
+      subscriptionPaidUntil: null,
+    });
   });
 
   it("mantém o acesso bloqueado e contabiliza código incorreto", async () => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { SessionData } from "@/lib/session";
 import type { EffectivePermissions, Filial } from "@/lib/types";
@@ -85,6 +85,7 @@ export default function NavBar({
   permissions: EffectivePermissions | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Fecha o drawer automaticamente ao navegar para outra tela (mobile).
@@ -197,6 +198,9 @@ export default function NavBar({
               <Link
                 key={l.href}
                 href={l.href}
+                prefetch={false}
+                onMouseEnter={() => router.prefetch(l.href)}
+                onFocus={() => router.prefetch(l.href)}
                 className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors hover:bg-[var(--surface-2)]"
                 style={
                   active
