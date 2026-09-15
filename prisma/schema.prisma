@@ -295,6 +295,7 @@ model Product {
 
   @@index([empresaId])
   @@index([filialId])
+  @@index([filialId, active, name])
   @@unique([filialId, code])
   @@unique([filialId, barcode])
 }
@@ -380,4 +381,5 @@ model Movement {
   @@index([createdAt])
   @@index([pedidoId])
   @@index([empresaId, type, createdAt])
+  @@index([filialId, type, createdAt])
 }
