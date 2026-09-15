@@ -83,6 +83,20 @@ export interface Product {
   createdAt: string;
 }
 
+export interface Supplier {
+  id: string;
+  empresaId: string;
+  name: string;
+  cnpjCpf: string | null;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** DTO seguro para componentes de pedido. O custo só existe quando a permissão
  * VIEW_COSTS_MARGIN foi confirmada no servidor. */
 export type OrderProduct = Omit<Product, "costPrice"> & { costPrice?: number };
@@ -121,6 +135,9 @@ export interface Pedido {
   cancelledByUserId: string | null;
   paymentMethod: PaymentMethod | null;
   boletoDueDays: number | null;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  invoiceNumber?: string | null;
 }
 
 export interface PedidoItem {

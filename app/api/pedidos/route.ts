@@ -4,6 +4,7 @@ import {
   checkPedidoStock,
   createPedido,
   getProductById,
+  getSupplierById,
   listPromotionsByProductIds,
   StockConflictError,
 } from "@/lib/repo";
@@ -27,11 +28,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) {
     return NextResponse.json({ error: firstZodError(parsed) }, { status: 400 });
   }
-  const { type, items: rawItems, force, paymentMethod, boletoDueDays } = parsed.data;
+  const { type, items: rawItems, force, paymentMethod, boletoDueDays, supplierId, invoiceNumber } = parsed.data;
   if (type === "IN" && !permissions.REGISTER_ENTRIES) {
     return NextResponse.json({ error: "Você não tem permissão para registrar entradas." }, { status: 403 });
   }
   const filialId = await getCurrentFilialId(user);
+  if (type === "IN" && supplierId) {
+    const supplier = await getSupplierById(supplierId, user.empresaId);
+    if (!supplier || !supplier.active) {
+      return NextResponse.json({ error: "Fornecedor não encontrado ou inativo." }, { status: 404 });
+    }
+  }
   const promotions =
     type === "OUT" ? await listPromotionsByProductIds(filialId, rawItems.map((i) => i.productId)) : [];
 
@@ -111,6 +118,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       items,
       paymentMethod,
       boletoDueDays,
+      supplierId,
+      invoiceNumber,
       allowNegativeStock: type === "OUT" && Boolean(force && canForceStock),
     });
   } catch (error) {
@@ -121,7 +130,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   Sentry.metrics.count("pedido_closed", 1, { attributes: { type: pedido.type } });
-  await recordTenantAudit({ user, action: "ORDER_CREATED", entityType: "Pedido", entityId: pedido.id, filialId, details: { number: pedido.number, type: pedido.type, itemCount: pedido.items.length, forcedStock: Boolean(force && canForceStock) } });
+  await recordTenantAudit({ user, action: "ORDER_CREATED", entityType: "Pedido", entityId: pedido.id, filialId, details: { number: pedido.number, type: pedido.type, itemCount: pedido.items.length, supplierId: pedido.supplierId, invoiceNumber: pedido.invoiceNumber, forcedStock: Boolean(force && canForceStock) } });
 
   const canViewReturnedValues = type === "OUT" ? permissions.VIEW_REPORTS : permissions.VIEW_COSTS_MARGIN;
   return NextResponse.json({ ok: true, pedido: canViewReturnedValues ? pedido : redactPedidoValues(pedido) });

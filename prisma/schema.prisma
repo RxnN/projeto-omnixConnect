@@ -70,6 +70,7 @@ model Empresa {
   pedidos        Pedido[]
   filiais        Filial[]
   promotions     Promotion[]
+  suppliers      Supplier[]
 
   @@map("Adega")
 }
@@ -300,6 +301,27 @@ model Product {
   @@unique([filialId, barcode])
 }
 
+/// Fornecedor compartilhado por todas as filiais da empresa. Entradas antigas continuam
+/// válidas sem fornecedor; novas compras podem ser vinculadas para formar o histórico.
+model Supplier {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("adegaId")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
+  name        String
+  cnpjCpf     String?
+  contactName String?
+  email       String?
+  phone       String?
+  notes       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  pedidos     Pedido[]
+
+  @@index([empresaId, active, name])
+  @@unique([empresaId, cnpjCpf])
+}
+
 /// Promoção de venda de um produto, sempre escopada a uma filial (o mesmo produto pode
 /// estar em promoção numa filial e não em outra — catálogo e preço são independentes por
 /// loja). O preço promocional nunca é gravado permanentemente: é calculado na hora da
@@ -348,11 +370,17 @@ model Pedido {
   paymentMethod   PaymentMethod?
   /// Só preenchido quando paymentMethod = BOLETO: prazo de vencimento em dias.
   boletoDueDays   Int?
+  /// Preenchidos somente em entradas. O vínculo opcional preserva registros antigos e
+  /// permite compras avulsas quando o fornecedor ainda não foi cadastrado.
+  supplierId      String?
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  invoiceNumber   String?
   items           Movement[]
 
   @@index([empresaId])
   @@index([empresaId, type, createdAt])
   @@index([filialId, type, createdAt])
+  @@index([supplierId, createdAt])
   @@unique([filialId, type, number])
 }
 

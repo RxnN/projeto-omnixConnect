@@ -61,6 +61,8 @@ export async function createPedido(input: {
   items: PedidoItemInput[];
   paymentMethod: PaymentMethod;
   boletoDueDays?: number | null;
+  supplierId?: string | null;
+  invoiceNumber?: string | null;
   allowNegativeStock?: boolean;
 }): Promise<PedidoWithItems> {
   const pedidoId = createId("pedido");
@@ -80,6 +82,8 @@ export async function createPedido(input: {
         createdByUserId: input.createdByUserId,
         paymentMethod: input.paymentMethod,
         boletoDueDays: input.boletoDueDays ?? null,
+        supplierId: input.type === "IN" ? input.supplierId ?? null : null,
+        invoiceNumber: input.type === "IN" ? input.invoiceNumber ?? null : null,
       },
     });
 
@@ -132,6 +136,9 @@ async function attachPedidoItems(pedido: {
   cancelledByUserId: string | null;
   paymentMethod: string | null;
   boletoDueDays: number | null;
+  supplierId: string | null;
+  invoiceNumber: string | null;
+  supplier: { name: string } | null;
   createdByUser: { name: string };
   cancelledByUser: { name: string } | null;
 }): Promise<PedidoWithItems> {
@@ -163,6 +170,9 @@ async function attachPedidoItems(pedido: {
     cancelledByUserId: pedido.cancelledByUserId,
     paymentMethod: pedido.paymentMethod as PaymentMethod | null,
     boletoDueDays: pedido.boletoDueDays,
+    supplierId: pedido.supplierId,
+    supplierName: pedido.supplier?.name ?? null,
+    invoiceNumber: pedido.invoiceNumber,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items,
@@ -172,7 +182,7 @@ async function attachPedidoItems(pedido: {
 export async function getPedidoById(id: string, filialId: string): Promise<PedidoWithItems | undefined> {
   const pedido = await prisma.pedido.findFirst({
     where: { id, filialId },
-    include: { createdByUser: { select: { name: true } }, cancelledByUser: { select: { name: true } } },
+    include: { createdByUser: { select: { name: true } }, cancelledByUser: { select: { name: true } }, supplier: { select: { name: true } } },
   });
   return pedido ? attachPedidoItems(pedido) : undefined;
 }
@@ -189,7 +199,7 @@ export async function listPedidos(
         ? { createdAt: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
         : {}),
     },
-    include: { createdByUser: { select: { name: true } }, cancelledByUser: { select: { name: true } } },
+    include: { createdByUser: { select: { name: true } }, cancelledByUser: { select: { name: true } }, supplier: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     ...(opts.limit ? { take: opts.limit } : {}),
   });
@@ -231,6 +241,9 @@ export async function listPedidos(
     cancelledByUserId: pedido.cancelledByUserId,
     paymentMethod: pedido.paymentMethod as PaymentMethod | null,
     boletoDueDays: pedido.boletoDueDays,
+    supplierId: pedido.supplierId,
+    supplierName: pedido.supplier?.name ?? null,
+    invoiceNumber: pedido.invoiceNumber,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items: itemsByPedido.get(pedido.id) ?? [],

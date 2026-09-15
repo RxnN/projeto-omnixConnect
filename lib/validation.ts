@@ -68,6 +68,51 @@ const phoneSchema = z
   .transform((v) => v.replace(/\D/g, ""))
   .refine((v) => v.length === 10 || v.length === 11, "Informe um telefone válido, com DDD.");
 
+const nullableText = (max: number, message: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+    z.string().trim().max(max, message).nullable().optional().transform((value) => value ?? null)
+  );
+
+const optionalDocumentSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z
+    .string()
+    .trim()
+    .max(32, "CPF ou CNPJ muito longo.")
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine(
+      (value) => (value.length === 11 || value.length === 14) && hasValidCheckDigits(value),
+      "Informe um CPF ou CNPJ válido."
+    )
+    .nullable()
+);
+
+const optionalSupplierPhoneSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z
+    .string()
+    .trim()
+    .max(32, "Telefone muito longo.")
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine((value) => value.length === 10 || value.length === 11, "Informe um telefone válido, com DDD.")
+    .nullable()
+);
+
+const optionalSupplierEmailSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().trim().max(254, "E-mail muito longo.").email("E-mail inválido.").toLowerCase().nullable()
+);
+
+export const supplierSchema = z.object({
+  name: z.string().trim().min(1, "Informe o nome do fornecedor.").max(200, "Nome do fornecedor muito longo."),
+  cnpjCpf: optionalDocumentSchema,
+  contactName: nullableText(200, "Nome do contato muito longo."),
+  email: optionalSupplierEmailSchema,
+  phone: optionalSupplierPhoneSchema,
+  notes: nullableText(1000, "Observações muito longas."),
+});
+
 export const passwordSchema = z
   .string()
   .min(10, "A senha deve ter pelo menos 10 caracteres.")
@@ -182,6 +227,14 @@ export const pedidoCreateSchema = z
       message: "Selecione a forma de pagamento.",
     }),
     boletoDueDays: z.coerce.number().int().positive().optional(),
+    supplierId: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+      z.string().trim().max(128, "Fornecedor inválido.").nullable().optional().transform((value) => value ?? null)
+    ),
+    invoiceNumber: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+      z.string().trim().max(80, "Número da nota muito longo.").nullable().optional().transform((value) => value ?? null)
+    ),
   })
   .superRefine((data, ctx) => {
     const seenProducts = new Set<string>();
@@ -207,6 +260,13 @@ export const pedidoCreateSchema = z
         code: "custom",
         message: "Informe em quantos dias vence o boleto.",
         path: ["boletoDueDays"],
+      });
+    }
+    if (data.type === "OUT" && (data.supplierId || data.invoiceNumber)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Fornecedor e nota fiscal só podem ser informados em entradas.",
+        path: ["supplierId"],
       });
     }
   });

@@ -25,6 +25,9 @@ const ICONS: Record<string, React.ReactNode> = {
   "/entrada": (
     <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" strokeLinecap="round" strokeLinejoin="round" />
   ),
+  "/fornecedores": (
+    <path d="M4 20V7l8-4 8 4v13M8 10h2m4 0h2M8 14h2m4 0h2M3 20h18" strokeLinecap="round" strokeLinejoin="round" />
+  ),
   "/movimentacao": (
     <path d="M4 6h16M4 12h16M4 18h10" strokeLinecap="round" strokeLinejoin="round" />
   ),
@@ -98,7 +101,10 @@ export default function NavBar({
     { href: "/alertas", label: "Alertas" },
     { href: "/pedidos", label: "Pedidos" },
   ];
-  if (permissions?.REGISTER_ENTRIES) links.push({ href: "/entrada", label: "Entrada" });
+  if (permissions?.REGISTER_ENTRIES) {
+    links.push({ href: "/entrada", label: "Entrada" });
+    links.push({ href: "/fornecedores", label: "Fornecedores" });
+  }
   links.push({ href: "/movimentacao", label: "Movimentações" });
   if (permissions?.VIEW_REPORTS) {
     links.push({ href: "/relatorios", label: "Relatórios" });

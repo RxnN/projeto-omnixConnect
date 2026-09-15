@@ -166,6 +166,12 @@ export default function HistoricoPedidos({
                           Cancelado em {formatDateTime(pedido.cancelledAt as string)} por {pedido.cancelledByName}.
                         </p>
                       )}
+                      {pedido.type === "IN" && (pedido.supplierName || pedido.invoiceNumber) && (
+                        <p className="text-xs mb-2.5" style={{ color: "var(--ink-soft)" }}>
+                          {pedido.supplierName ? `Fornecedor: ${pedido.supplierName}` : "Fornecedor não vinculado"}
+                          {pedido.invoiceNumber ? ` · Nota fiscal: ${pedido.invoiceNumber}` : ""}
+                        </p>
+                      )}
                       <table className="min-w-full text-xs rounded-lg overflow-hidden" style={{ backgroundColor: "var(--surface-2)" }}>
                         <thead style={{ color: "var(--ink-soft)" }}>
                           <tr>
@@ -233,6 +239,7 @@ export default function HistoricoPedidos({
                 <div><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Itens</p><p className="font-medium mt-1">{pedido.items.length} produtos · {qtdItens} un.</p></div>
                 {showValues && <div className="text-right"><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Total</p><p className="font-semibold tabular mt-1">{formatBRL(pedido.totalValue)}</p></div>}
               </div>
+              {pedido.type === "IN" && (pedido.supplierName || pedido.invoiceNumber) && <p className="text-xs mt-3" style={{ color: "var(--ink-soft)" }}>{pedido.supplierName ?? "Fornecedor não vinculado"}{pedido.invoiceNumber ? ` · NF ${pedido.invoiceNumber}` : ""}</p>}
             </button>
             {isOpen && <div className="space-y-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
               {pedido.items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm"><span>{item.productName}<small className="block" style={{ color: "var(--ink-soft)" }}>{item.quantity} {item.productUnit}</small></span>{showValues && <strong className="tabular">{formatBRL(item.totalValue)}</strong>}</div>)}

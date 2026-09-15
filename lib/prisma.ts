@@ -139,6 +139,7 @@ const modelNames = new Set([
   "promotion",
   "pedido",
   "movement",
+  "supplier",
 ]);
 
 const rawMethods = new Set(["$queryRaw", "$queryRawUnsafe", "$executeRaw", "$executeRawUnsafe"]);

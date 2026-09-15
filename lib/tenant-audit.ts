@@ -19,7 +19,10 @@ export type TenantAuditAction =
   | "OTHER_SESSIONS_REVOKED"
   | "USER_INVITED"
   | "USER_INVITE_ACCEPTED"
-  | "DATA_DELETION_REQUESTED";
+  | "DATA_DELETION_REQUESTED"
+  | "SUPPLIER_CREATED"
+  | "SUPPLIER_UPDATED"
+  | "SUPPLIER_STATUS_CHANGED";
 
 export async function recordTenantAudit(input: {
   user: SessionData;

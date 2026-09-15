@@ -24,6 +24,7 @@ interface ReviewItem extends ParsedItem {
 interface NFeInfo {
   number: string | null;
   supplierName: string | null;
+  supplierCnpj: string | null;
 }
 
 export default function NFeImport({
@@ -31,7 +32,10 @@ export default function NFeImport({
   onImport,
 }: {
   products: OrderProduct[];
-  onImport: (items: { product: OrderProduct; quantity: number; unitValue: number }[]) => void;
+  onImport: (
+    items: { product: OrderProduct; quantity: number; unitValue: number }[],
+    nfe: NFeInfo | null
+  ) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -87,7 +91,7 @@ export default function NFeImport({
       setError("Nenhum item pronto para adicionar. Vincule os produtos não encontrados a um produto do sistema.");
       return;
     }
-    onImport(toAdd);
+    onImport(toAdd, nfeInfo);
     setItems([]);
     setNfeInfo(null);
     setError(null);

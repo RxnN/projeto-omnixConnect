@@ -32,6 +32,7 @@ afterAll(async () => {
       await prisma.pedido.deleteMany({ where: { empresaId } });
       await prisma.promotion.deleteMany({ where: { empresaId } });
       await prisma.product.deleteMany({ where: { empresaId } });
+      await prisma.supplier.deleteMany({ where: { empresaId } }).catch(() => undefined);
       await prisma.registrationDocument.deleteMany({ where: { empresaId } });
       await prisma.passwordResetToken.deleteMany({ where: { empresaId } });
       await prisma.counter.deleteMany({ where: { filial: { empresaId } } });

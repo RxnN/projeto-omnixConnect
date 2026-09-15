@@ -855,6 +855,53 @@ body {
   padding: 0;
 }
 
+.supplier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .9rem;
+}
+
+.supplier-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.supplier-contact-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+  font-size: .75rem;
+}
+
+.supplier-contact-list p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.supplier-contact-list span {
+  display: block;
+  margin-bottom: .25rem;
+  color: var(--ink-soft);
+  font-size: .65rem;
+}
+
+.supplier-notes {
+  flex: 1;
+  padding: .65rem .75rem;
+  border-radius: .65rem;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .supplier-grid,
+  .supplier-contact-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .data-table {
   width: 100%;
   min-width: 42rem;

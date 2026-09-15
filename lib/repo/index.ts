@@ -9,3 +9,4 @@ export * from "./pedido";
 export * from "./promotion";
 export * from "./email-verification";
 export * from "./password-reset";
+export * from "./supplier";

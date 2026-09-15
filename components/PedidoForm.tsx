@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { MovementType, OrderProduct, PackageType, PaymentMethod, Promotion } from "@/lib/types";
+import type { MovementType, OrderProduct, PackageType, PaymentMethod, Promotion, Supplier } from "@/lib/types";
 import { formatBRL } from "@/lib/format";
 import { getEffectivePrice } from "@/lib/pricing";
 import ProductAutocomplete from "./ProductAutocomplete";
@@ -67,12 +67,14 @@ export default function PedidoForm({
   canEditPrice,
   canForceStock,
   promotions = [],
+  suppliers = [],
 }: {
   products: OrderProduct[];
   type: MovementType;
   canEditPrice: boolean;
   canForceStock: boolean;
   promotions?: Promotion[];
+  suppliers?: Supplier[];
 }) {
   const router = useRouter();
   const isEntrada = type === "IN";
@@ -105,6 +107,8 @@ export default function PedidoForm({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [boletoDueDays, setBoletoDueDays] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [supplierId, setSupplierId] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + baseQuantity(item) * item.unitValue, 0), [cart]);
@@ -201,8 +205,22 @@ export default function PedidoForm({
     });
   }
 
-  function handleNFeImport(items: { product: OrderProduct; quantity: number; unitValue: number }[]) {
+  function handleNFeImport(
+    items: { product: OrderProduct; quantity: number; unitValue: number }[],
+    nfe: { number: string | null; supplierName: string | null; supplierCnpj: string | null } | null
+  ) {
     items.forEach((it) => addToCartWithQuantity(it.product, it.quantity, it.unitValue));
+    if (nfe?.number) setInvoiceNumber(nfe.number);
+    if (nfe) {
+      const document = nfe.supplierCnpj?.replace(/\D/g, "");
+      const normalizedName = nfe.supplierName?.trim().toLocaleLowerCase("pt-BR");
+      const match = suppliers.find(
+        (supplier) =>
+          (document && supplier.cnpjCpf === document) ||
+          (normalizedName && supplier.name.trim().toLocaleLowerCase("pt-BR") === normalizedName)
+      );
+      if (match) setSupplierId(match.id);
+    }
     setSuccess(`${items.length} produto(s) da NF-e adicionados ao pedido de entrada.`);
   }
 
@@ -261,6 +279,8 @@ export default function PedidoForm({
           force,
           paymentMethod,
           boletoDueDays: paymentMethod === "BOLETO" && boletoDueDays ? Number(boletoDueDays) : undefined,
+          supplierId: isEntrada ? supplierId || null : null,
+          invoiceNumber: isEntrada ? invoiceNumber.trim() || null : null,
         }),
       });
       const data = await res.json();
@@ -285,6 +305,8 @@ export default function PedidoForm({
       setCart([]);
       setPaymentMethod("");
       setBoletoDueDays("");
+      setSupplierId("");
+      setInvoiceNumber("");
       setDialogOpen(false);
       closeButtonRef.current?.focus();
       router.refresh();
@@ -334,6 +356,37 @@ export default function PedidoForm({
   return (
     <div className="space-y-6">
       {isEntrada && <NFeImport products={products} onImport={handleNFeImport} />}
+
+      {isEntrada && (
+        <div className="panel grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="entry-supplier">Fornecedor</label>
+            <select
+              id="entry-supplier"
+              className="input"
+              value={supplierId}
+              onChange={(event) => setSupplierId(event.target.value)}
+            >
+              <option value="">Compra sem fornecedor vinculado</option>
+              {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            </select>
+            <p className="text-xs mt-1.5" style={{ color: "var(--ink-soft)" }}>
+              Cadastre e gerencie fornecedores na opção Fornecedores do menu.
+            </p>
+          </div>
+          <div>
+            <label className="label" htmlFor="entry-invoice">Número da nota fiscal</label>
+            <input
+              id="entry-invoice"
+              className="input"
+              value={invoiceNumber}
+              onChange={(event) => setInvoiceNumber(event.target.value)}
+              maxLength={80}
+              placeholder="Opcional"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="panel space-y-2 order-search-panel">
         <label className="label">Adicionar produto ao pedido de {isEntrada ? "entrada" : "saída"}</label>
