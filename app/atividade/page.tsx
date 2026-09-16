@@ -19,6 +19,10 @@ const ACTION_LABELS: Record<string, string> = {
   USER_INVITED: "Usuário convidado",
   USER_INVITE_ACCEPTED: "Convite aceito",
   DATA_DELETION_REQUESTED: "Exclusão de conta solicitada",
+  SUPPLIER_CREATED: "Fornecedor cadastrado",
+  SUPPLIER_UPDATED: "Fornecedor alterado",
+  SUPPLIER_STATUS_CHANGED: "Status do fornecedor alterado",
+  ENTRY_PAYMENT_STATUS_CHANGED: "Pagamento de entrada alterado",
 };
 
 export const dynamic = "force-dynamic";

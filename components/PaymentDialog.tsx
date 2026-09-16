@@ -112,7 +112,7 @@ export default function PaymentDialog({
             {isEntrada ? "Forma de pagamento da NF-e" : "Forma de pagamento"}
           </h2>
           <p className="text-sm mt-1" style={{ color: "var(--ink-soft)" }}>
-            Selecione como este pedido foi pago.
+            {isEntrada ? "Informe como esta compra será paga." : "Selecione como este pedido foi pago."}
           </p>
         </div>
 
@@ -139,18 +139,27 @@ export default function PaymentDialog({
         </div>
 
         {isEntrada && paymentMethod === "BOLETO" && (
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            className="input"
-            placeholder="Vencimento em quantos dias (ex: 30)"
-            value={boletoDueDays}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "" || /^\d+$/.test(raw)) onBoletoDueDaysChange(raw);
-            }}
-          />
+          <div className="space-y-2">
+            <label className="label" htmlFor="boleto-due-days">Prazo do boleto</label>
+            <div className="flex flex-wrap gap-2">
+              {[7, 14, 21, 28, 30, 45].map((days) => (
+                <button key={days} type="button" className={boletoDueDays === String(days) ? "btn-primary" : "btn-secondary"} onClick={() => onBoletoDueDaysChange(String(days))}>{days} dias</button>
+              ))}
+            </div>
+            <input
+              id="boleto-due-days"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="input"
+              placeholder="Outro prazo em dias"
+              value={boletoDueDays}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || /^\d+$/.test(raw)) onBoletoDueDaysChange(raw);
+              }}
+            />
+          </div>
         )}
 
         {error && (

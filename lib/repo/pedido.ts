@@ -4,6 +4,7 @@ import { createId } from "../id";
 import type { MovementSource, MovementType, PaymentMethod, PedidoItem, PedidoWithItems } from "../types";
 import { toIso } from "./shared";
 import { nextCounter } from "./counter";
+import { calculateBoletoDueAt } from "../payments";
 
 async function nextPedidoNumber(filialId: string, type: MovementType): Promise<number> {
   return nextCounter(filialId, `pedido:${type}`);
@@ -69,6 +70,13 @@ export async function createPedido(input: {
   const number = await nextPedidoNumber(input.filialId, input.type);
   const totalValue = input.items.reduce((sum, it) => sum + it.quantity * it.unitValue, 0);
   const stockSign = input.type === "IN" ? 1 : -1;
+  const createdAt = new Date();
+  const paymentDueAt =
+    input.type === "IN" && input.paymentMethod === "BOLETO" && input.boletoDueDays
+      ? calculateBoletoDueAt(input.boletoDueDays, createdAt)
+      : null;
+  const paymentPaidAt =
+    input.type === "IN" && input.paymentMethod !== "BOLETO" ? createdAt : null;
 
   await prisma.$transaction(async (tx) => {
     await tx.pedido.create({
@@ -84,6 +92,9 @@ export async function createPedido(input: {
         boletoDueDays: input.boletoDueDays ?? null,
         supplierId: input.type === "IN" ? input.supplierId ?? null : null,
         invoiceNumber: input.type === "IN" ? input.invoiceNumber ?? null : null,
+        paymentDueAt,
+        paymentPaidAt,
+        createdAt,
       },
     });
 
@@ -138,6 +149,8 @@ async function attachPedidoItems(pedido: {
   boletoDueDays: number | null;
   supplierId: string | null;
   invoiceNumber: string | null;
+  paymentDueAt: Date | null;
+  paymentPaidAt: Date | null;
   supplier: { name: string } | null;
   createdByUser: { name: string };
   cancelledByUser: { name: string } | null;
@@ -173,6 +186,8 @@ async function attachPedidoItems(pedido: {
     supplierId: pedido.supplierId,
     supplierName: pedido.supplier?.name ?? null,
     invoiceNumber: pedido.invoiceNumber,
+    paymentDueAt: pedido.paymentDueAt?.toISOString() ?? null,
+    paymentPaidAt: pedido.paymentPaidAt?.toISOString() ?? null,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items,
@@ -244,6 +259,8 @@ export async function listPedidos(
     supplierId: pedido.supplierId,
     supplierName: pedido.supplier?.name ?? null,
     invoiceNumber: pedido.invoiceNumber,
+    paymentDueAt: pedido.paymentDueAt?.toISOString() ?? null,
+    paymentPaidAt: pedido.paymentPaidAt?.toISOString() ?? null,
     createdByName: pedido.createdByUser.name,
     cancelledByName: pedido.cancelledByUser?.name ?? null,
     items: itemsByPedido.get(pedido.id) ?? [],

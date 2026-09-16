@@ -138,6 +138,22 @@ export interface Pedido {
   supplierId?: string | null;
   supplierName?: string | null;
   invoiceNumber?: string | null;
+  paymentDueAt?: string | null;
+  paymentPaidAt?: string | null;
+}
+
+export interface EntryPayment {
+  id: string;
+  number: number;
+  totalValue: number;
+  paymentMethod: PaymentMethod | null;
+  boletoDueDays: number | null;
+  paymentDueAt: string | null;
+  paymentPaidAt: string | null;
+  createdAt: string;
+  invoiceNumber: string | null;
+  supplierName: string | null;
+  itemCount: number;
 }
 
 export interface PedidoItem {

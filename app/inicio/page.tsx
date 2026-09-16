@@ -11,6 +11,7 @@ const QUICK_ACTIONS = [
   { href: "/entrada", title: "Registrar entrada", description: "Adicione mercadorias ao estoque.", permission: "REGISTER_ENTRIES" as const, icon: <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /> },
   { href: "/produtos", title: "Consultar estoque", description: "Veja produtos, preços e saldos.", permission: null, icon: <path d="M4 7.5 12 4l8 3.5M4 7.5v9L12 20m0-12.5 8 3.5M12 7.5V20m8-9v9l-8 3.5" /> },
   { href: "/movimentacao", title: "Movimentações", description: "Acompanhe entradas e saídas.", permission: null, icon: <path d="M4 6h16M4 12h16M4 18h10" /> },
+  { href: "/pagamentos", title: "Contas a pagar", description: "Veja boletos próximos e atrasados.", permission: "VIEW_COSTS_MARGIN" as const, icon: <path d="M4 7h16v10H4zM4 10h16M8 14h3" /> },
 ];
 
 function Trend({ period, comparison }: { period: DashboardPeriod; comparison: string }) {

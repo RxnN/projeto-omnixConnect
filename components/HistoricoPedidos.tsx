@@ -30,6 +30,13 @@ export default function HistoricoPedidos({
   const [warnings, setWarnings] = useState<Record<string, { message: string; blockers: CancelBlocker[] }>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  function paymentDetail(pedido: PedidoWithItems) {
+    if (pedido.type !== "IN") return null;
+    if (pedido.paymentPaidAt) return "Pago";
+    if (pedido.paymentDueAt) return `Vence ${new Date(pedido.paymentDueAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+    return null;
+  }
+
   if (pedidos.length === 0) {
     return (
       <div className="card text-center shadow-sm" style={{ padding: "2.5rem 1.5rem" }}>
@@ -134,6 +141,7 @@ export default function HistoricoPedidos({
                   )}
                   <td className="px-5 py-3.5 text-xs" style={{ color: "var(--ink-soft)" }}>
                     {formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}
+                    {paymentDetail(pedido) && <span className="block mt-1">{paymentDetail(pedido)}</span>}
                   </td>
                   <td className="px-5 py-3.5 text-xs" style={{ color: "var(--ink-soft)" }}>
                     {pedido.createdByName}
@@ -244,7 +252,7 @@ export default function HistoricoPedidos({
             {isOpen && <div className="space-y-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
               {pedido.items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm"><span>{item.productName}<small className="block" style={{ color: "var(--ink-soft)" }}>{item.quantity} {item.productUnit}</small></span>{showValues && <strong className="tabular">{formatBRL(item.totalValue)}</strong>}</div>)}
             </div>}
-            <div className="mobile-record-footer"><span className="text-xs" style={{ color: "var(--ink-soft)" }}>{formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}</span>{canManage && !isCancelled && <button type="button" className="text-xs font-semibold" style={{ color: "var(--danger)" }} onClick={() => handleCancel(pedido.id)} disabled={cancelling === pedido.id}>Cancelar</button>}</div>
+            <div className="mobile-record-footer"><span className="text-xs" style={{ color: "var(--ink-soft)" }}>{formatPaymentMethod(pedido.paymentMethod, pedido.boletoDueDays)}{paymentDetail(pedido) && <small className="block mt-1">{paymentDetail(pedido)}</small>}</span>{canManage && !isCancelled && <button type="button" className="text-xs font-semibold" style={{ color: "var(--danger)" }} onClick={() => handleCancel(pedido.id)} disabled={cancelling === pedido.id}>Cancelar</button>}</div>
           </article>
         );
       })}

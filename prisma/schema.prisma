@@ -375,12 +375,17 @@ model Pedido {
   supplierId      String?
   supplier        Supplier?     @relation(fields: [supplierId], references: [id])
   invoiceNumber   String?
+  /// Controle financeiro das entradas. Dinheiro/Pix nascem quitados; boleto nasce
+  /// pendente com vencimento calculado e recebe paymentPaidAt quando houver baixa.
+  paymentDueAt    DateTime?
+  paymentPaidAt   DateTime?
   items           Movement[]
 
   @@index([empresaId])
   @@index([empresaId, type, createdAt])
   @@index([filialId, type, createdAt])
   @@index([supplierId, createdAt])
+  @@index([filialId, type, paymentPaidAt, paymentDueAt])
   @@unique([filialId, type, number])
 }
 

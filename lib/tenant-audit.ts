@@ -22,7 +22,8 @@ export type TenantAuditAction =
   | "DATA_DELETION_REQUESTED"
   | "SUPPLIER_CREATED"
   | "SUPPLIER_UPDATED"
-  | "SUPPLIER_STATUS_CHANGED";
+  | "SUPPLIER_STATUS_CHANGED"
+  | "ENTRY_PAYMENT_STATUS_CHANGED";
 
 export async function recordTenantAudit(input: {
   user: SessionData;
